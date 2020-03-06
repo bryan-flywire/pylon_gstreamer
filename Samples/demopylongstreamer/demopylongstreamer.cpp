@@ -183,6 +183,7 @@ bool h264stream = false;
 bool h264multicast = false;
 bool h264file = false;
 bool display = false;
+bool displayh264file = false;
 bool framebuffer = false;
 bool parsestring = false;
 bool onDemand = false;
@@ -227,6 +228,7 @@ int ParseCommandLine(gint argc, gchar *argv[])
 			cout << " -h264stream <ipaddress> (Encodes images as h264 and transmits stream to another PC running a GStreamer receiving pipeline.)" << endl;
 			cout << " -h264multicast <ipaddress> (Encodes images as h264 and multicasts stream to the network.)" << endl;
 			cout << " -h264file <filename> <number of images> (Encodes images as h264 and records stream to local file.)" << endl;
+			cout << " -displayh264file <filename> <number of images> (Encodes images as h264 and records stream to local file.)" << endl;
 			cout << " -window (displays the raw image stream in a window on the local machine.)" << endl;
 			cout << " -framebuffer <fbdevice> (directs raw image stream to Linux framebuffer. eg: /dev/fb0)" << endl;
 			cout << " -parse <string> (try your existing gst-launch-1.0 pipeline string. We will replace the original pipeline source with the Basler camera if needed.)" << endl;
@@ -329,6 +331,10 @@ int ParseCommandLine(gint argc, gchar *argv[])
 			{
 				useTrigger = true;
 			}
+			else if (string(argv[i]) == "-displayh264file")
+			{
+				displayh264file = true;
+			}
 			else if (string(argv[i]) == "-h264stream")
 			{
 				h264stream = true;
@@ -424,7 +430,7 @@ int ParseCommandLine(gint argc, gchar *argv[])
 			}			
 		}
 
-		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, h264multicast, parsestring };
+		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring };
 		int pipelinesRequested = 0;
 
 		for (int i = 0; i < sizeof(pipelinesAvailable); i++)
@@ -491,7 +497,7 @@ gint main(gint argc, gchar *argv[])
 
 		// Initialize the camera and driver
 		cout << "Initializing camera and driver..." << endl;
-		camera.InitCamera(width, height, frameRate, onDemand, useTrigger, scaledWidth, scaledHeight, rotation, numImagesToRecord);		
+		camera.InitCamera(1080, 1920, 25, onDemand, useTrigger, scaledWidth, scaledHeight, rotation, numImagesToRecord);		
 
 		cout << "Using Camera             : " << camera.GetDeviceInfo().GetFriendlyName() << endl;
 		cout << "Camera Area Of Interest  : " << camera.GetWidth() << "x" << camera.GetHeight() << endl;
@@ -529,6 +535,8 @@ gint main(gint argc, gchar *argv[])
 			pipelineBuilt = myPipelineHelper.build_pipeline_h264multicast(ipaddress.c_str());
 		else if (h264file == true)
 			pipelineBuilt = myPipelineHelper.build_pipeline_h264file(filename.c_str());
+		else if (displayh264file == true)
+			pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file();
 		else if (framebuffer == true)
 			pipelineBuilt = myPipelineHelper.build_pipeline_framebuffer(fbdev.c_str());
 		else if (parsestring == true)

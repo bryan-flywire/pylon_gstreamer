@@ -70,7 +70,7 @@ bool CPipelineHelper::build_pipeline_display()
 		cout << "Creating Pipeline for displaying images in local window..." << endl;
 		// Create gstreamer elements
 		convert = gst_element_factory_make("videoconvert", "converter");
-		sink = gst_element_factory_make("autovideosink", "videosink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
@@ -78,6 +78,7 @@ bool CPipelineHelper::build_pipeline_display()
 		// if you are using nvidia tx1/tx2, the built-in video sink that is found by autovideosink does not advertise it needs conversion (it does not support RGB).
 		// so we must use a filter such that the converter knows to convert the image format.
 		// if you are using a video sink that supports RGB, then you do not need to convert to i420 and you can remove this filter and save some cpu load.
+		/*
 		GstElement *filter;
 		GstCaps *filter_caps;
 		filter = gst_element_factory_make("capsfilter", "filter");
@@ -87,10 +88,10 @@ bool CPipelineHelper::build_pipeline_display()
 		
 		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
 		gst_caps_unref(filter_caps);
-
+		*/
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, convert, filter, sink, NULL);
-		gst_element_link_many(m_source, convert, filter, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, convert, sink, NULL);
+		gst_element_link_many(m_source, convert, sink, NULL);
 		
 		
 		cout << "Pipeline Made." << endl;
@@ -161,6 +162,7 @@ bool CPipelineHelper::build_pipeline_h264stream(string ipAddress)
 
 		GstElement *convert;
 		GstElement *encoder;
+		GstElement *parse;
 		GstElement *filter2;
 		GstElement *rtp264;
 		GstElement *sink;
@@ -366,14 +368,17 @@ bool CPipelineHelper::build_pipeline_h264file(string fileName)
 			cout << "Cancelling -h264file. Another pipeline has already been built." << endl;
 			return false;
 		}
-	
+
+		GstElement *queue;
 		GstElement *convert;
 		GstElement *encoder;
+		GstElement *parse;
 		GstElement *sink;
 
 		cout << "Creating Pipeline for saving images as h264 video on local host: " << fileName << "..." << endl;
 
 		// Create gstreamer elements
+		queue = gst_element_factory_make("queue", "queue");
 		convert = gst_element_factory_make("videoconvert", "converter");
 
 		// depending on your platform, you may have to use some alternative encoder here.
@@ -393,7 +398,8 @@ bool CPipelineHelper::build_pipeline_h264file(string fileName)
 				}
 			}
 		}
-		sink = gst_element_factory_make("filesink", "filesink");
+		parse = gst_element_factory_make("h264parse", "h264parse");
+		sink = gst_element_factory_make("splitmuxsink", "splitmuxsink");
 
 
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
@@ -409,11 +415,15 @@ bool CPipelineHelper::build_pipeline_h264file(string fileName)
 			g_object_set(G_OBJECT(encoder), "speed-preset", 1, NULL);
 		}
 
-		g_object_set(G_OBJECT(sink), "location", fileName.c_str(), NULL);
+		g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
+		g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
+
+		g_object_set(G_OBJECT(sink), "location", "/media/56C7-FC96/video%02d.mp4", NULL);
+		g_object_set(G_OBJECT(sink), "max-size-time", 300000000000, NULL);
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, convert, encoder, sink, NULL);
-		gst_element_link_many(m_source, convert, encoder, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, convert, encoder, parse, sink, NULL);
+		gst_element_link_many(m_source, convert, queue, encoder, parse, sink, NULL);
 		
 		cout << "Pipeline Made." << endl;
 		
@@ -424,6 +434,104 @@ bool CPipelineHelper::build_pipeline_h264file(string fileName)
 	catch (std::exception &e)
 	{
 		cerr << "An exception occurred in build_pipeline_h264file(): " << endl << e.what() << endl;
+		return false;
+	}
+}
+
+bool CPipelineHelper::build_pipeline_display_h264file()
+{
+	try
+	{
+		if (m_pipelineBuilt == true)
+		{
+			cout << "Cancelling -display. Another pipeline has already been built." << endl;
+			return false;
+		}
+		
+		GstElement *pipequeue;
+		GstElement *videoflip;
+		GstElement *convert;
+		GstElement *tee;
+
+		GstElement *dispqueue;
+		GstElement *dispsink;
+
+		GstElement *recqueue;
+		GstElement *encode;
+		GstElement *parse;
+		GstElement *filesink;
+
+		cout << "Creating Pipeline for displaying images in local window..." << endl;
+		// Create gstreamer elements
+		pipequeue = gst_element_factory_make("queue", "queue0");
+		videoflip = gst_element_factory_make("videoflip", "videoflip");
+		convert = gst_element_factory_make("videoconvert", "converter");
+		tee = gst_element_factory_make("tee","tee");
+
+		dispqueue = gst_element_factory_make("queue", "queue1");
+		//dispsink = gst_element_factory_make("autovideosink", "videosink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+		dispsink = gst_element_factory_make("nveglglessink", "nveglglessink");
+
+		recqueue = gst_element_factory_make("queue", "queu2e");
+		encode = gst_element_factory_make("omxh264enc", "omxh264enc");
+		parse = gst_element_factory_make("h264parse", "h264parse");
+		filesink = gst_element_factory_make("splitmuxsink", "splitmuxsink");
+
+		if (!pipequeue){ cout << "Could not make pipequeue" << endl; return false; }
+		if (!videoflip){ cout << "Could not make videoflip" << endl; return false; }
+		if (!convert){ cout << "Could not make convert" << endl; return false; }
+		if (!tee){ cout << "Could not make tee" << endl; return false; }
+
+		if (!dispqueue){ cout << "Could not make dispqueue" << endl; return false; }
+		if (!dispsink){ cout << "Could not make dispsink" << endl; return false; }
+
+		if (!recqueue){ cout << "Could not make recqueue" << endl; return false; }
+		if (!encode){ cout << "Could not make encode" << endl; return false; }
+		if (!parse){ cout << "Could not make parse" << endl; return false; }
+		if (!filesink){ cout << "Could not make filesink" << endl; return false; }
+		
+		g_object_set(G_OBJECT(pipequeue), "leaky", 2, NULL);
+		g_object_set(G_OBJECT(pipequeue), "max-size-time", 5000000000, NULL);
+		g_object_set(G_OBJECT(recqueue), "leaky", 2, NULL);
+		g_object_set(G_OBJECT(recqueue), "max-size-time", 5000000000, NULL);
+		g_object_set(G_OBJECT(dispqueue), "leaky", 2, NULL);
+		g_object_set(G_OBJECT(dispqueue), "max-size-time", 5000000000, NULL);
+
+		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
+		//g_object_set(G_OBJECT(videoflip), "flip-method", 1, NULL);
+
+		g_object_set(G_OBJECT(filesink), "location", "/media/56C7-FC96/video%02d.mp4", NULL);
+		g_object_set(G_OBJECT(filesink), "max-size-time", 300000000000, NULL);
+
+		// if you are using nvidia tx1/tx2, the built-in video sink that is found by autovideosink does not advertise it needs conversion (it does not support RGB).
+		// so we must use a filter such that the converter knows to convert the image format.
+		// if you are using a video sink that supports RGB, then you do not need to convert to i420 and you can remove this filter and save some cpu load.
+		GstElement *filter;
+		GstCaps *filter_caps;
+		filter = gst_element_factory_make("capsfilter", "filter");
+		filter_caps = gst_caps_new_simple("video/x-raw",
+		  "format", G_TYPE_STRING, "I420",
+		  NULL);
+		
+		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
+		gst_caps_unref(filter_caps);
+
+		// add and link the pipeline elements
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, filter, dispsink, recqueue, encode, parse, filesink, NULL);
+		gst_element_link_many(m_source, pipequeue, videoflip, convert, tee, NULL);
+		gst_element_link_many(tee, dispqueue, filter, dispsink, NULL);
+		gst_element_link_many(tee, recqueue, encode, parse, filesink, NULL);
+		
+		
+		cout << "Pipeline Made." << endl;
+		
+		m_pipelineBuilt = true;
+
+		return true;
+	}
+	catch (std::exception &e)
+	{
+		cerr << "An exception occurred in build_pipeline_display_h264file(): " << endl << e.what() << endl;
 		return false;
 	}
 }

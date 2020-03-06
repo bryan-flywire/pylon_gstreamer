@@ -274,6 +274,7 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 			// if only connected as usb 2, reduce bandwidth to something stable, like 24MB/sec.
 			if (GenApi::CEnumerationPtr(GetNodeMap().GetNode("BslUSBSpeedMode"))->ToString() == "HighSpeed")
 			{
+				cout << "WARNING:Device Connected in USB 2.0 Mode, performace will be impacted..." << endl;
 				GenApi::CEnumerationPtr(GetNodeMap().GetNode("DeviceLinkThroughputLimitMode"))->FromString("On");
 				GenApi::CIntegerPtr(GetNodeMap().GetNode("DeviceLinkThroughputLimit"))->SetValue(24000000);
 			}
@@ -304,8 +305,9 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 
 		// Configure the Pylon image format converter
 		// We're going to use GStreamer's RGB format in pipelines, so we may need to use Pylon to convert the camera's image to RGB (depending on the camera used)
-		EPixelType pixelType = Pylon::EPixelType::PixelType_RGB8packed;
-		m_FormatConverter.OutputPixelFormat.SetValue(pixelType);
+		//EPixelType pixelType = Pylon::EPixelType::PixelType_RGB8packed;
+		EPixelType pixelType = Pylon::EPixelType::PixelType_YUV422_YUYV_Packed;
+		//m_FormatConverter.OutputPixelFormat.SetValue(pixelType);
 
 		// setup some settings common to most cameras (it's always best to check if a feature is available before setting it)
 		if (m_isTriggered == false)
@@ -324,7 +326,7 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 		}
 
 		// Initialize the Pylon image to a blank image on the off chance that the very first m_Image can't be supplied by the instant camera (ie: missing trigger signal)
-		m_Image.Reset(pixelType, m_width, m_height);
+		m_Image.Reset(Pylon::EPixelType::PixelType_RGB8packed, m_width, m_height);
 
 		m_isInitialized = true;
 
@@ -431,10 +433,12 @@ bool CInstantCameraAppSrc::retrieve_image()
 		// if the Grab Result indicates success, then we have a good image within the result.
 		if (ptrGrabResult->GrabSucceeded())
 		{
+			/*
 			// if we have a color image, and the image is not RGB, convert it to RGB and place it into the CInstantCameraAppSrc::image for GStreamer
 			if (m_isColor == true && m_FormatConverter.ImageHasDestinationFormat(ptrGrabResult) == false)
 			{
-				m_FormatConverter.Convert(m_Image, ptrGrabResult);
+				//m_FormatConverter.Convert(m_Image, ptrGrabResult);
+				m_Image.CopyImage(ptrGrabResult);
 			}
 			// else if we have an RGB image or a Mono image, simply copy the image to CInstantCameraAppSrc::image
 			// (push a copy of the image to the pipeline instead of a pointer in case we retrieve another image while the first is still going through the pipeline).
@@ -442,6 +446,8 @@ bool CInstantCameraAppSrc::retrieve_image()
 			{
 				m_Image.CopyImage(ptrGrabResult);
 			}
+			*/
+			m_Image.CopyImage(ptrGrabResult);
 		}
 		else
 		{
@@ -673,6 +679,8 @@ GstElement* CInstantCameraAppSrc::GetSource()
 		// Videoconvert's format: { I420, YV12, YUY2, UYVY, AYUV, VUYA, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, RGB, BGR, Y41B, Y42B, YVYU, Y444, v210, v216, Y210, Y410, NV12, NV21, GRAY8, GRAY16_BE, GRAY16_LE, v308, RGB16, BGR16, RGB15, BGR15, UYVP, A420, RGB8P, YUV9, YVU9, IYU1, ARGB64, AYUV64, r210, I420_10BE, I420_10LE, I422_10BE, I422_10LE, Y444_10BE, Y444_10LE, GBR, GBR_10BE, GBR_10LE, NV16, NV24, NV12_64Z32, A420_10BE, A420_10LE, A422_10BE, A422_10LE, A444_10BE, A444_10LE, NV61, P010_10BE, P010_10LE, IYU2, VYUY, GBRA, GBRA_10BE, GBRA_10LE, BGR10A2_LE, RGB10A2_LE, GBR_12BE, GBR_12LE, GBRA_12BE, GBRA_12LE, I420_12BE, I420_12LE, I422_12BE, I422_12LE, Y444_12BE, Y444_12LE, GRAY10_LE32, NV12_10LE32, NV16_10LE32, NV12_10LE40 }
 		string format = "";
 		EPixelType pixelType = m_Image.GetPixelType();
+		format = "YUY2";
+		/*
 		switch (pixelType)
 		{
 			case Pylon::PixelType_Undefined:
@@ -874,7 +882,7 @@ GstElement* CInstantCameraAppSrc::GetSource()
 				// todo
 				break;
 		}
-
+		*/
 		g_object_set(G_OBJECT(m_appsrc), "caps",
 			gst_caps_new_simple("video/x-raw",
 			"format", G_TYPE_STRING, format.c_str(),
@@ -963,6 +971,7 @@ GstElement* CInstantCameraAppSrc::GetSource()
 		sourceBinName.append(this->GetDeviceInfo().GetSerialNumber());
 		m_sourceBin = gst_bin_new(sourceBinName.c_str());
 
+		/*
 		gst_bin_add_many(GST_BIN(m_sourceBin), m_appsrc, converter, rescaler, rescalerCaps, rotator, finalConverter, finalFilter, NULL);
 		gst_element_link_many(m_appsrc, converter, rescaler, rescalerCaps, rotator, finalConverter, finalFilter, NULL);
 
@@ -971,23 +980,27 @@ GstElement* CInstantCameraAppSrc::GetSource()
 		binSrc = gst_element_get_static_pad(finalFilter, "src");
 		gst_element_add_pad(m_sourceBin, gst_ghost_pad_new("src", binSrc));
 		gst_object_unref(GST_OBJECT(binSrc));
-
+		
 		g_object_set(G_OBJECT(m_sourceBin),
 			"async-handling", TRUE,
 			"message-forward", TRUE,
 			NULL);
 
-		return m_sourceBin;
+		//return m_sourceBin;
+		*/
+		return m_appsrc;
 	}
 	catch (GenICam::GenericException &e)
 	{
 		cerr << "An exception occured in GetSource(): " << endl << e.GetDescription() << endl;
-		return m_sourceBin;
+		//return m_sourceBin;
+		return m_appsrc;
 	}
 	catch (std::exception &e)
 	{
 		cerr << "An exception occurred in GetSource(): " << endl << e.what() << endl;
-		return m_sourceBin;
+		//return m_sourceBin;
+		return m_appsrc;
 	}
 }
 

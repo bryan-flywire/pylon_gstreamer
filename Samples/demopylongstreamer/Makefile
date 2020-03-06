@@ -13,7 +13,7 @@ DIR ?= /usr/include
 # Build tools and flags
 LD         := $(CXX)
 CPPFLAGS   := $(shell pkg-config --cflags gstreamer-1.0 gstreamer-app-1.0) $(shell $(PYLON_ROOT)/bin/pylon-config --cflags) -std=c++11
-CXXFLAGS   := #e.g., CXXFLAGS=-g -O0 for debugging
+CXXFLAGS   := #-g -O0 #e.g., CXXFLAGS=-g -O0 for debugging
 LDFLAGS    := $(shell $(PYLON_ROOT)/bin/pylon-config --libs-rpath) 
 LDLIBS     := $(shell pkg-config --libs gstreamer-1.0 gstreamer-app-1.0) $(shell $(PYLON_ROOT)/bin/pylon-config --libs)
 
