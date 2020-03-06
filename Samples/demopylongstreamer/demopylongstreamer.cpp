@@ -335,28 +335,6 @@ int ParseCommandLine(gint argc, gchar *argv[])
 			{
 				displayh264file = true;
 			}
-			else if (string(argv[i]) == "-h264stream")
-			{
-				h264stream = true;
-				if (argv[i + 1] != NULL)
-					ipaddress = string(argv[i + 1]);
-				else
-				{
-					cout << "IP Address not specified. eg: -h264stream 192.168.2.102" << endl;
-					return -1;
-				}
-			}
-			else if (string(argv[i]) == "-h264multicast")
-			{
-				h264multicast = true;
-				if (argv[i + 1] != NULL)
-					ipaddress = string(argv[i + 1]);
-				else
-				{
-					cout << "IP Address not specified. eg: -h264multicast 224.1.1.1" << endl;
-					return -1;
-				}
-			}
 			else if (string(argv[i]) == "-h264file")
 			{
 				h264file = true;
@@ -379,55 +357,6 @@ int ParseCommandLine(gint argc, gchar *argv[])
 			{
 				display = true;
 			}
-			else if (string(argv[i]) == "-framebuffer")
-			{
-				framebuffer = true;
-				if (argv[i + 1] != NULL)
-					fbdev = string(argv[i + 1]);
-				else
-				{
-					cout << "Framebuffer not specified. eg: -framebuffer /dev/fb0" << endl;
-					return -1;
-				}
-			}
-			else if (string(argv[i]) == "-parse")
-			{
-				parsestring = true;
-				if (argv[i + 1] != NULL)
-					pipelineString = string(argv[i + 1]);
-				else
-				{
-					cout << "pipeline string not specified. Use one of these format with quotes: \"gst-launch-1.0 videotestsrc ! videoflip method=vertical-flip ! videoconvert ! autovideosink\" or \"videoflip method=vertical-flip ! videoconvert ! autovideosink\"" << endl;
-					return -1;
-				}
-			}
-			// deprecated
-			else if (string(argv[i]) == "-display")
-			{
-				display = true;
-			}
-			// deprecated
-			else if (string(argv[i]) == "-width")
-			{
-				if (argv[i + 1] != NULL)
-					width = atoi(argv[i + 1]);
-				else
-				{
-					cout << "Width not specified. eg: -width 640" << endl;
-					return -1;
-				}
-			}
-			// deprecated
-			else if (string(argv[i]) == "-height")
-			{
-				if (argv[i + 1] != NULL)
-					height = atoi(argv[i + 1]);
-				else
-				{
-					cout << "Height not specified. eg: -height 480" << endl;
-					return -1;
-				}
-			}			
 		}
 
 		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring };
@@ -529,18 +458,10 @@ gint main(gint argc, gchar *argv[])
 
 		if (display == true)
 			pipelineBuilt = myPipelineHelper.build_pipeline_display();
-		else if (h264stream == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_h264stream(ipaddress.c_str());
-		else if (h264multicast == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_h264multicast(ipaddress.c_str());
 		else if (h264file == true)
 			pipelineBuilt = myPipelineHelper.build_pipeline_h264file(filename.c_str());
 		else if (displayh264file == true)
 			pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file();
-		else if (framebuffer == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_framebuffer(fbdev.c_str());
-		else if (parsestring == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_parsestring(pipelineString.c_str());
 
 		if (pipelineBuilt == false)
 		{

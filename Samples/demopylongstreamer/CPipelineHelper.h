@@ -37,23 +37,10 @@ public:
 	// example of how to create a pipeline for display in a window
 	bool build_pipeline_display();
 
-	// example of how to create a pipeline for piping images to a linux framebuffer
-	bool build_pipeline_framebuffer(string fbDevice);
-
-	// example of how to create a pipeline for encoding images in h264 format and streaming across a network
-	bool build_pipeline_h264stream(string ipAddress);
-
-	// example of how to create a pipeline for encoding images in h264 format and multicast across a network
-	bool build_pipeline_h264multicast(string ipAddress);
-
 	// example of how to create a pipeline for encoding images in h264 format and streaming to local video file
 	bool build_pipeline_h264file(string fileName);
 
 	bool build_pipeline_display_h264file();
-
-	// example of how to create a pipeline from a string that you would use with gst-launch-1.0
-	bool build_pipeline_parsestring(string pipelineString);
-
 private:
 	bool m_pipelineBuilt;
 	GstElement *m_pipeline;
