@@ -338,20 +338,6 @@ int ParseCommandLine(gint argc, gchar *argv[])
 			else if (string(argv[i]) == "-h264file")
 			{
 				h264file = true;
-				if (argv[i + 1] != NULL)
-					filename = string(argv[i + 1]);
-				else
-				{
-					cout << "Filename not specified. eg: -h264file filename 100" << endl;
-					return -1;
-				}
-				if (argv[i + 2] != NULL)
-					numImagesToRecord = atoi(argv[i + 2]);
-				else
-				{
-					cout << "Number of images not specified. eg: -h264file filename 100" << endl;
-					return -1;
-				}
 			}
 			else if (string(argv[i]) == "-window")
 			{
@@ -459,7 +445,7 @@ gint main(gint argc, gchar *argv[])
 		if (display == true)
 			pipelineBuilt = myPipelineHelper.build_pipeline_display();
 		else if (h264file == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_h264file(filename.c_str());
+			pipelineBuilt = myPipelineHelper.build_pipeline_h264file();
 		else if (displayh264file == true)
 			pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file();
 

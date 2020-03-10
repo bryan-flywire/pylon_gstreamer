@@ -38,7 +38,7 @@ public:
 	bool build_pipeline_display();
 
 	// example of how to create a pipeline for encoding images in h264 format and streaming to local video file
-	bool build_pipeline_h264file(string fileName);
+	bool build_pipeline_h264file();
 
 	bool build_pipeline_display_h264file();
 private:

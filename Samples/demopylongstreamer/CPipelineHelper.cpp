@@ -62,36 +62,32 @@ bool CPipelineHelper::build_pipeline_display()
 			cout << "Cancelling -display. Another pipeline has already been built." << endl;
 			return false;
 		}
-		
 
+		GstElement *queue;
+		GstElement *videoflip;
 		GstElement *convert;
 		GstElement *sink;
 
 		cout << "Creating Pipeline for displaying images in local window..." << endl;
 		// Create gstreamer elements
+		queue = gst_element_factory_make("queue", "queue");
+		videoflip = gst_element_factory_make("videoflip", "videoflip");
 		convert = gst_element_factory_make("videoconvert", "converter");
 		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
+		if (!videoflip){ cout << "Could not make videoflip" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
 		
-		// if you are using nvidia tx1/tx2, the built-in video sink that is found by autovideosink does not advertise it needs conversion (it does not support RGB).
-		// so we must use a filter such that the converter knows to convert the image format.
-		// if you are using a video sink that supports RGB, then you do not need to convert to i420 and you can remove this filter and save some cpu load.
-		/*
-		GstElement *filter;
-		GstCaps *filter_caps;
-		filter = gst_element_factory_make("capsfilter", "filter");
-		filter_caps = gst_caps_new_simple("video/x-raw",
-		  "format", G_TYPE_STRING, "I420",
-		  NULL);
-		
-		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
-		gst_caps_unref(filter_caps);
-		*/
+		// Set up elements
+		g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
+		g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
+
+		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
+
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, convert, sink, NULL);
-		gst_element_link_many(m_source, convert, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, videoflip, convert, sink, NULL);
+		gst_element_link_many(m_source, queue, videoflip, convert, sink, NULL);
 		
 		
 		cout << "Pipeline Made." << endl;
@@ -103,12 +99,14 @@ bool CPipelineHelper::build_pipeline_display()
 	catch (std::exception &e)
 	{
 		cerr << "An exception occurred in build_pipeline_display(): " << endl << e.what() << endl;
+		gst_element_send_event(m_source, gst_event_new_eos());
 		return false;
+		
 	}
 }
 
 // example of how to create a pipeline for encoding images in h264 format and streaming to local video file
-bool CPipelineHelper::build_pipeline_h264file(string fileName)
+bool CPipelineHelper::build_pipeline_h264file()
 {
 	try
 	{
@@ -119,60 +117,44 @@ bool CPipelineHelper::build_pipeline_h264file(string fileName)
 		}
 
 		GstElement *queue;
+		GstElement *videoflip;
 		GstElement *convert;
-		GstElement *encoder;
+		GstElement *encode;
 		GstElement *parse;
 		GstElement *sink;
 
-		cout << "Creating Pipeline for saving images as h264 video on local host: " << fileName << "..." << endl;
+		cout << "Creating Pipeline for saving frames as h264 video on local host" << endl;
 
 		// Create gstreamer elements
 		queue = gst_element_factory_make("queue", "queue");
+		videoflip = gst_element_factory_make("videoflip", "videoflip");
 		convert = gst_element_factory_make("videoconvert", "converter");
 
 		// depending on your platform, you may have to use some alternative encoder here.
-		encoder = gst_element_factory_make("omxh264enc", "omxh264enc"); // omxh264enc works good on Raspberry Pi
-		if (!encoder)
-		{
-			cout << "Could not make omxh264enc encoder. Trying imxvpuenc_h264..." << endl;
-			encoder = gst_element_factory_make("imxvpuenc_h264", "imxvpuenc_h264"); // for i.MX devices.
-			if (!encoder)
-			{
-				cout << "Could not make imxvpuenc_h264 encoder. Trying x264enc..." << endl;
-				encoder = gst_element_factory_make("x264enc", "x264enc"); // for other devices
-				if (!encoder)
-				{
-					cout << "Could not make x264enc encoder." << endl;
-					return false;
-				}
-			}
-		}
+		encode = gst_element_factory_make("omxh264enc", "omxh264enc"); // omxh264enc works good on Raspberry Pi
 		parse = gst_element_factory_make("h264parse", "h264parse");
 		sink = gst_element_factory_make("splitmuxsink", "splitmuxsink");
 
-
+		if (!videoflip){ cout << "Could not make videoflip" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
-		if (!encoder){ cout << "Could not make encoder" << endl; return false; }
+		if (!encode){ cout << "Could not make encoder" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
 
 		// Set up elements
-
-		// Different encoders have different features you can set.
-		if (encoder->object.name == "x264enc")
-		{
-			// for compatibility on resource-limited systems, set the encoding preset "ultrafast". Lowest quality video, but lowest lag.
-			g_object_set(G_OBJECT(encoder), "speed-preset", 1, NULL);
-		}
-
 		g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
 		g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
+
+		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
+
+		g_object_set(G_OBJECT(encode), "control-rate", 2, NULL);
+		g_object_set(G_OBJECT(encode), "bitrate", 10000000, NULL);
 
 		g_object_set(G_OBJECT(sink), "location", "/media/56C7-FC96/video%02d.mp4", NULL);
 		g_object_set(G_OBJECT(sink), "max-size-time", 300000000000, NULL);
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, convert, encoder, parse, sink, NULL);
-		gst_element_link_many(m_source, convert, queue, encoder, parse, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, videoflip, convert, encode, parse, sink, NULL);
+		gst_element_link_many(m_source, convert, queue,  videoflip, encode, parse, sink, NULL);
 		
 		cout << "Pipeline Made." << endl;
 		
@@ -183,6 +165,7 @@ bool CPipelineHelper::build_pipeline_h264file(string fileName)
 	catch (std::exception &e)
 	{
 		cerr << "An exception occurred in build_pipeline_h264file(): " << endl << e.what() << endl;
+		gst_element_send_event(m_source, gst_event_new_eos());
 		return false;
 	}
 }
@@ -210,7 +193,7 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		GstElement *parse;
 		GstElement *filesink;
 
-		cout << "Creating Pipeline for displaying images in local window..." << endl;
+		cout << "Creating Pipeline for displaying and encoding frames..." << endl;
 		// Create gstreamer elements
 		pipequeue = gst_element_factory_make("queue", "queue0");
 		videoflip = gst_element_factory_make("videoflip", "videoflip");
@@ -240,35 +223,24 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		if (!filesink){ cout << "Could not make filesink" << endl; return false; }
 		
 		g_object_set(G_OBJECT(pipequeue), "leaky", 2, NULL);
-		g_object_set(G_OBJECT(pipequeue), "max-size-time", 5000000000, NULL);
+		g_object_set(G_OBJECT(pipequeue), "max-size-time", 2500000000, NULL);
 		g_object_set(G_OBJECT(recqueue), "leaky", 2, NULL);
-		g_object_set(G_OBJECT(recqueue), "max-size-time", 5000000000, NULL);
+		g_object_set(G_OBJECT(recqueue), "max-size-time", 2500000000, NULL);
 		g_object_set(G_OBJECT(dispqueue), "leaky", 2, NULL);
-		g_object_set(G_OBJECT(dispqueue), "max-size-time", 5000000000, NULL);
+		g_object_set(G_OBJECT(dispqueue), "max-size-time", 2500000000, NULL);
 
 		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
-		//g_object_set(G_OBJECT(videoflip), "flip-method", 1, NULL);
+
+		g_object_set(G_OBJECT(encode), "control-rate", 2, NULL);
+		g_object_set(G_OBJECT(encode), "bitrate", 10000000, NULL);
 
 		g_object_set(G_OBJECT(filesink), "location", "/media/56C7-FC96/video%02d.mp4", NULL);
 		g_object_set(G_OBJECT(filesink), "max-size-time", 300000000000, NULL);
 
-		// if you are using nvidia tx1/tx2, the built-in video sink that is found by autovideosink does not advertise it needs conversion (it does not support RGB).
-		// so we must use a filter such that the converter knows to convert the image format.
-		// if you are using a video sink that supports RGB, then you do not need to convert to i420 and you can remove this filter and save some cpu load.
-		GstElement *filter;
-		GstCaps *filter_caps;
-		filter = gst_element_factory_make("capsfilter", "filter");
-		filter_caps = gst_caps_new_simple("video/x-raw",
-		  "format", G_TYPE_STRING, "I420",
-		  NULL);
-		
-		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
-		gst_caps_unref(filter_caps);
-
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, filter, dispsink, recqueue, encode, parse, filesink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, dispsink, recqueue, encode, parse, filesink, NULL);
 		gst_element_link_many(m_source, pipequeue, videoflip, convert, tee, NULL);
-		gst_element_link_many(tee, dispqueue, filter, dispsink, NULL);
+		gst_element_link_many(tee, dispqueue, dispsink, NULL);
 		gst_element_link_many(tee, recqueue, encode, parse, filesink, NULL);
 		
 		
@@ -281,6 +253,7 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 	catch (std::exception &e)
 	{
 		cerr << "An exception occurred in build_pipeline_display_h264file(): " << endl << e.what() << endl;
+		gst_element_send_event(m_source, gst_event_new_eos());
 		return false;
 	}
 }

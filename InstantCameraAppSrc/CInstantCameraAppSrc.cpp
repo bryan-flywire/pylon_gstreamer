@@ -57,6 +57,7 @@
 	*/
 
 #include "CInstantCameraAppSrc.h"
+#include <gst/app/gstappsrc.h>
 
 using namespace Pylon;
 using namespace GenApi;
@@ -224,6 +225,10 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 			GenApi::CBooleanPtr(GetNodeMap().GetNode("CenterX"))->SetValue(true);
 		if (IsWritable(GetNodeMap().GetNode("CenterY")))
 			GenApi::CBooleanPtr(GetNodeMap().GetNode("CenterY"))->SetValue(true);
+		
+		GenApi::CEnumerationPtr ptrAutoExposure = GetNodeMap().GetNode("ExposureAuto");
+		if (IsWritable(GetNodeMap().GetNode("ExposureAuto")))
+			GenApi::CEnumerationPtr(GetNodeMap().GetNode("ExposureAuto"))->FromString("Off");
 
 		if (m_isOnDemand == true || m_isTriggered == true)
 		{
@@ -433,20 +438,6 @@ bool CInstantCameraAppSrc::retrieve_image()
 		// if the Grab Result indicates success, then we have a good image within the result.
 		if (ptrGrabResult->GrabSucceeded())
 		{
-			/*
-			// if we have a color image, and the image is not RGB, convert it to RGB and place it into the CInstantCameraAppSrc::image for GStreamer
-			if (m_isColor == true && m_FormatConverter.ImageHasDestinationFormat(ptrGrabResult) == false)
-			{
-				//m_FormatConverter.Convert(m_Image, ptrGrabResult);
-				m_Image.CopyImage(ptrGrabResult);
-			}
-			// else if we have an RGB image or a Mono image, simply copy the image to CInstantCameraAppSrc::image
-			// (push a copy of the image to the pipeline instead of a pointer in case we retrieve another image while the first is still going through the pipeline).
-			else if (m_FormatConverter.ImageHasDestinationFormat(ptrGrabResult) == true || Pylon::IsMonoImage(ptrGrabResult->GetPixelType()))
-			{
-				m_Image.CopyImage(ptrGrabResult);
-			}
-			*/
 			m_Image.CopyImage(ptrGrabResult);
 		}
 		else
@@ -466,11 +457,12 @@ bool CInstantCameraAppSrc::retrieve_image()
 			m_Image.GetImageSize(),
 			NULL,
 			NULL);
-
+		/*
 		// Push the gst buffer wrapping the image buffer to the source pads of the AppSrc element, where it's picked up by the rest of the pipeline
 		GstFlowReturn ret;
 		g_signal_emit_by_name(m_appsrc, "push-buffer", m_gstBuffer, &ret);
-
+		*/
+		gst_app_src_push_buffer(GST_APP_SRC(m_appsrc), m_gstBuffer);
 		return true;
 	}
 	catch (GenICam::GenericException &e)
@@ -672,217 +664,10 @@ GstElement* CInstantCameraAppSrc::GetSource()
 			NULL);
 
 		// setup the appsrc caps (what kind of video is coming out of the source element?
-
-		// First, align the defintion of the Pylon image's pixel format to those available in the videoconvert element
-		// See Pylon's documentation for pixeltype definitions 
-		// See this link for gstreamer video format definitions (https://gstreamer.freedesktop.org/documentation/additional/design/mediatype-video-raw.html?gi-language=c)
-		// Videoconvert's format: { I420, YV12, YUY2, UYVY, AYUV, VUYA, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, RGB, BGR, Y41B, Y42B, YVYU, Y444, v210, v216, Y210, Y410, NV12, NV21, GRAY8, GRAY16_BE, GRAY16_LE, v308, RGB16, BGR16, RGB15, BGR15, UYVP, A420, RGB8P, YUV9, YVU9, IYU1, ARGB64, AYUV64, r210, I420_10BE, I420_10LE, I422_10BE, I422_10LE, Y444_10BE, Y444_10LE, GBR, GBR_10BE, GBR_10LE, NV16, NV24, NV12_64Z32, A420_10BE, A420_10LE, A422_10BE, A422_10LE, A444_10BE, A444_10LE, NV61, P010_10BE, P010_10LE, IYU2, VYUY, GBRA, GBRA_10BE, GBRA_10LE, BGR10A2_LE, RGB10A2_LE, GBR_12BE, GBR_12LE, GBRA_12BE, GBRA_12LE, I420_12BE, I420_12LE, I422_12BE, I422_12LE, Y444_12BE, Y444_12LE, GRAY10_LE32, NV12_10LE32, NV16_10LE32, NV12_10LE40 }
 		string format = "";
 		EPixelType pixelType = m_Image.GetPixelType();
 		format = "YUY2";
-		/*
-		switch (pixelType)
-		{
-			case Pylon::PixelType_Undefined:
-				// todo
-				break;
-			case Pylon::PixelType_Mono1packed:
-				format = "GRAY8";
-				break;
-			case Pylon::PixelType_Mono2packed:
-				format = "GRAY8";
-				break;
-			case Pylon::PixelType_Mono4packed:
-				format = "GRAY8";
-				break;
-			case Pylon::PixelType_Mono8:
-				format = "GRAY8";
-				break;
-			case Pylon::PixelType_Mono8signed:
-				format = "GRAY8";
-				break;
-			case Pylon::PixelType_Mono10:
-				format = "GRAY16_LE";
-				break;
-			case Pylon::PixelType_Mono10packed:
-				format = "GRAY16_LE";
-				break;
-			case Pylon::PixelType_Mono10p:
-				format = "GRAY16_LE";
-				break;
-			case Pylon::PixelType_Mono12:
-				format = "GRAY16_LE";
-				break;
-			case Pylon::PixelType_Mono12packed:
-				format = "GRAY16_LE";
-				break;
-			case Pylon::PixelType_Mono12p:
-				format = "GRAY16_LE";
-				break;
-			case Pylon::PixelType_Mono16:
-				format = "GRAY16_LE";
-				break;
-			case Pylon::PixelType_BayerGR8:
-				// todo
-				break;
-			case Pylon::PixelType_BayerRG8:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGB8:
-				// todo
-				break;
-			case Pylon::PixelType_BayerBG8:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGR10:
-				// todo
-				break;
-			case Pylon::PixelType_BayerRG10:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGB10:
-				// todo
-				break;
-			case Pylon::PixelType_BayerBG10:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGR12:
-				// todo
-				break;
-			case Pylon::PixelType_BayerRG12:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGB12:
-				// todo
-				break;
-			case Pylon::PixelType_BayerBG12:
-				// todo
-				break;
-			case Pylon::PixelType_RGB8packed:
-				format = "RGB";
-				break;
-			case Pylon::PixelType_BGR8packed:
-				format = "BGR";
-				break;
-			case Pylon::PixelType_RGBA8packed:
-				format = "RGBA";
-				break;
-			case Pylon::PixelType_BGRA8packed:
-				format = "BGRA";
-				break;
-			case Pylon::PixelType_RGB10packed:
-				// todo
-				break;
-			case Pylon::PixelType_BGR10packed:
-				// todo
-				break;
-			case Pylon::PixelType_RGB12packed:
-				// todo
-				break;
-			case Pylon::PixelType_BGR12packed:
-				// todo
-				break;
-			case Pylon::PixelType_RGB16packed:
-				// todo
-				break;
-			case Pylon::PixelType_BGR10V1packed:
-				// todo
-				break;
-			case Pylon::PixelType_BGR10V2packed:
-				// todo
-				break;
-			case Pylon::PixelType_YUV411packed:
-				// todo
-				break;
-			case Pylon::PixelType_YUV422packed:
-				// todo
-				break;
-			case Pylon::PixelType_YUV444packed:
-				// todo
-				break;
-			case Pylon::PixelType_RGB8planar:
-				// todo
-				break;
-			case Pylon::PixelType_RGB10planar:
-				// todo
-				break;
-			case Pylon::PixelType_RGB12planar:
-				// todo
-				break;
-			case Pylon::PixelType_RGB16planar:
-				// todo
-				break;
-			case Pylon::PixelType_YUV422_YUYV_Packed:
-				// todo
-				break;
-			case Pylon::PixelType_YUV444planar:
-				// todo
-				break;
-			case Pylon::PixelType_YUV422planar:
-				// todo
-				break;
-			case Pylon::PixelType_YUV420planar:
-				format = "I420";
-				break;
-			case Pylon::PixelType_BayerGR12Packed:
-				// todo
-				break;
-			case Pylon::PixelType_BayerRG12Packed:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGB12Packed:
-				// todo
-				break;
-			case Pylon::PixelType_BayerBG12Packed:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGR10p:
-				// todo
-				break;
-			case Pylon::PixelType_BayerRG10p:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGB10p:
-				// todo
-				break;
-			case Pylon::PixelType_BayerBG10p:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGR12p:
-				// todo
-				break;
-			case Pylon::PixelType_BayerRG12p:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGB12p:
-				// todo
-				break;
-			case Pylon::PixelType_BayerBG12p:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGR16:
-				// todo
-				break;
-			case Pylon::PixelType_BayerRG16:
-				// todo
-				break;
-			case Pylon::PixelType_BayerGB16:
-				// todo
-				break;
-			case Pylon::PixelType_BayerBG16:
-				// todo
-				break;
-			case Pylon::PixelType_RGB12V1packed:
-				// todo
-				break;
-			case Pylon::PixelType_Double:
-				// todo
-				break;
-			default:
-				// todo
-				break;
-		}
-		*/
+		
 		g_object_set(G_OBJECT(m_appsrc), "caps",
 			gst_caps_new_simple("video/x-raw",
 			"format", G_TYPE_STRING, format.c_str(),
@@ -893,101 +678,6 @@ GstElement* CInstantCameraAppSrc::GetSource()
 		// connect the appsrc to the cb_need_data callback function. When appsrc sends the need-data signal, cb_need_data will run.
 		g_signal_connect(m_appsrc, "need-data", G_CALLBACK(cb_need_data), this);
 
-		// we can also bin the source with a videoscaler and videoflip element to offer easy rescaling and rotation to the user
-		GstElement *rescaler;
-		GstElement *rescalerCaps;
-		GstElement *rotator;
-		GstElement *converter;
-		GstElement *finalConverter;
-		GstElement *finalFilter;
-		GstCaps	   *finalFilter_caps;
-		rescaler = gst_element_factory_make("videoscale", "rescaler");
-		rescalerCaps = gst_element_factory_make("capsfilter", "rescalerCaps");
-		rotator = gst_element_factory_make("videoflip", "rotator");
-		converter = gst_element_factory_make("videoconvert", "converter");
-		finalConverter = gst_element_factory_make("videoconvert", "finalConverter");
-		finalFilter = gst_element_factory_make("capsfilter", "filter");
-
-		// configure the videoscaler and videoscaler caps elements
-		if (m_scaledWidth == -1 || m_scaledHeight == -1)
-		{
-			// don't do any rescaling
-			m_scaledWidth = this->GetWidth();
-			m_scaledHeight = this->GetHeight();
-		}
-		else if (m_scaledWidth < 2 || m_scaledHeight < 2)
-		{
-			// rescaling to widths less that 2 could cause buffer pool errors
-			cerr << "Scaling width and height must be greater than 2x2! Will not scale image!" << endl;
-			m_scaledWidth = this->GetWidth();
-			m_scaledHeight = this->GetHeight();
-		}
-
-		// configure the capsfilter after the videoscaler element, so it will apply scaling.
-		g_object_set(G_OBJECT(rescalerCaps), "caps",
-			gst_caps_new_simple("video/x-raw",
-			"format", G_TYPE_STRING, format.c_str(),
-			"width", G_TYPE_INT, m_scaledWidth,
-			"height", G_TYPE_INT, m_scaledHeight,
-			"framerate", GST_TYPE_FRACTION, (int)this->GetFrameRate(), 1, NULL), NULL);
-
-		// configure the videoflip element for rotation
-		if (m_rotation == -1 || m_rotation == 0)
-			m_rotation = 0; // GST_VIDEO_FLIP_METHOD_IDENTITY (none). We offer it as -1 to the user to remain consistent with other options where -1 = no effect
-		else if (m_rotation == 90)
-			m_rotation = 1; // GST_VIDEO_FLIP_METHOD_90R
-		else if (m_rotation == 180)
-			m_rotation = 2; // GST_VIDEO_FLIP_METHOD_180
-		else if (m_rotation == 270)
-			m_rotation = 3; // GST_VIDEO_FLIP_METHOD_90L
-		else
-		{
-			cerr << "Only rotation angles of 90, 180, 270 are supported! Will not rotate image!" << endl;
-			m_rotation = 0;
-		}
-
-		g_object_set(G_OBJECT(rotator), "method", m_rotation, NULL);
-		
-		// configure the final filter caps so that we output the common I420 format (if color)
-		if (m_isColor == true)
-		{
-			finalFilter_caps = gst_caps_new_simple("video/x-raw",
-				"format", G_TYPE_STRING, "I420",
-				NULL);
-		}
-		else
-		{
-			finalFilter_caps = gst_caps_new_simple("video/x-raw",
-				"format", G_TYPE_STRING, format.c_str(),
-				NULL);
-		}
-			
-		g_object_set(G_OBJECT(finalFilter), "caps", finalFilter_caps, NULL);
-		gst_caps_unref(finalFilter_caps);
-		
-		// combine the appsrc, rescaler, and rotator elements into a single binned element
-		// Give this "sourceBin" a unique name by adding the camera serial number, so that multiple cameras can be placed in the same pipeline.
-		string sourceBinName = "sourcebin";
-		sourceBinName.append(this->GetDeviceInfo().GetSerialNumber());
-		m_sourceBin = gst_bin_new(sourceBinName.c_str());
-
-		/*
-		gst_bin_add_many(GST_BIN(m_sourceBin), m_appsrc, converter, rescaler, rescalerCaps, rotator, finalConverter, finalFilter, NULL);
-		gst_element_link_many(m_appsrc, converter, rescaler, rescalerCaps, rotator, finalConverter, finalFilter, NULL);
-
-		// setup a ghost pad, so the src output of the last element in the bin attaches to the rest of the pipeline.
-		GstPad *binSrc;
-		binSrc = gst_element_get_static_pad(finalFilter, "src");
-		gst_element_add_pad(m_sourceBin, gst_ghost_pad_new("src", binSrc));
-		gst_object_unref(GST_OBJECT(binSrc));
-		
-		g_object_set(G_OBJECT(m_sourceBin),
-			"async-handling", TRUE,
-			"message-forward", TRUE,
-			NULL);
-
-		//return m_sourceBin;
-		*/
 		return m_appsrc;
 	}
 	catch (GenICam::GenericException &e)
