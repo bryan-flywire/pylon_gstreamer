@@ -34,6 +34,7 @@ public:
 	CPipelineHelper(GstElement *pipeline, GstElement *source);
 	~CPipelineHelper();
 	
+	bool close_pipeline();
 	// example of how to create a pipeline for display in a window
 	bool build_pipeline_display();
 

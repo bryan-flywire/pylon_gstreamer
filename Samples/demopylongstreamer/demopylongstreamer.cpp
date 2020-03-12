@@ -75,10 +75,13 @@
 #include "../../InstantCameraAppSrc/CInstantCameraAppSrc.h"
 #include "CPipelineHelper.h"
 #include <gst/gst.h>
+#include <thread>
 
 using namespace std;
 
 int exitCode = 0;
+
+string input = "";
 
 // ******* variables, call-backs, etc. for use with gstreamer ********
 // The main event loop manages all the available sources of events for GLib and GTK+ applications
@@ -90,13 +93,53 @@ guint bus_watch_id;
 // we link elements together in a pipeline, and send messages to/from the pipeline.
 GstElement *pipeline;
 
+static void sigint_restore()
+{
+	try
+	{
+#ifndef WIN32
+		struct sigaction action;
+		memset(&action, 0, sizeof(action));
+		action.sa_handler = SIG_DFL;
+		sigaction(SIGINT, &action, NULL);
+#endif
+	}
+	catch (std::exception &e)
+	{
+		cerr << "An exception occurred in sigint_restore(): " << endl << e.what() << endl;
+	}
+}
+
+void TestHandler(int dummy){
+	cout << "TEST HANDLER:  " << dummy << endl;
+}
+
+// Signal handler for ctrl+c
+void IntHandler(int dummy)
+{
+	try
+	{
+		// send End Of Stream event to all pipeline elements
+		cout << endl;
+		cout << "Sending EOS event to pipeline..." << endl;
+		gst_element_send_event(pipeline, gst_event_new_eos());
+		cout << "sigint_restore..." << endl;
+		sigint_restore();
+		cout << "return..." << endl;
+		return;
+	}
+	catch (std::exception &e)
+	{
+		cerr << "An exception occurred in IntHandler(): " << endl << e.what() << endl;
+	}
+}
+
 // handler for bus call messages
 gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 {
 	try
 	{
 		GMainLoop *loop = (GMainLoop *)data;
-
 		switch (GST_MESSAGE_TYPE(msg)) {
 
 		case GST_MESSAGE_EOS:
@@ -122,8 +165,21 @@ gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 		default:
 			break;
 		}
-
+		/*
+		cout << "Main Loop Status: " << g_main_loop_is_running(loop) << endl;
+		if (g_main_loop_is_running(loop)){
+			cout << "Waiting for input..." << flush << endl;
+			cin >> input;
+			cout << "input " << input << endl;
+			
+			if(input == "EOS"){
+				
+			}
+		} else {
+			g_main_loop_quit(loop);
+		}
 		return TRUE;
+		*/
 	}
 	catch (std::exception &e)
 	{
@@ -132,40 +188,6 @@ gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 	}
 }
 
-static void sigint_restore()
-{
-	try
-	{
-#ifndef WIN32
-		struct sigaction action;
-		memset(&action, 0, sizeof(action));
-		action.sa_handler = SIG_DFL;
-		sigaction(SIGINT, &action, NULL);
-#endif
-	}
-	catch (std::exception &e)
-	{
-		cerr << "An exception occurred in sigint_restore(): " << endl << e.what() << endl;
-	}
-}
-
-// Signal handler for ctrl+c
-void IntHandler(int dummy)
-{
-	try
-	{
-		// send End Of Stream event to all pipeline elements
-		cout << endl;
-		cout << "Sending EOS event to pipeline..." << endl;
-		gst_element_send_event(pipeline, gst_event_new_eos());
-		sigint_restore();
-		return;
-	}
-	catch (std::exception &e)
-	{
-		cerr << "An exception occurred in IntHandler(): " << endl << e.what() << endl;
-	}
-}
 
 // ******* END variables, call-backs, etc. for use with gstreamer ********
 
@@ -377,6 +399,17 @@ int ParseCommandLine(gint argc, gchar *argv[])
 	}
 }
 
+void evalUsrInt(){
+	while(true){
+		cout << "waiting for input" << endl;
+		cin >> input;
+		cout << "Input: " << input << endl;
+		if (input == "EOS"){
+			IntHandler(0);
+		}
+	}
+}
+
 // *********** END Command line argument variables and parser **************
 
 gint main(gint argc, gchar *argv[])
@@ -393,8 +426,10 @@ gint main(gint argc, gchar *argv[])
 
 		// signal handler for ctrl+C
 		signal(SIGINT, IntHandler);
-
 		cout << "Press CTRL+C at any time to quit." << endl;
+
+		thread inptThread(evalUsrInt);
+		inptThread.detach();
 
 		// initialize GStreamer 
 		gst_init(NULL, NULL);
@@ -469,17 +504,21 @@ gint main(gint argc, gchar *argv[])
 		// run the main loop. When Ctrl+C is pressed, an EOS event will be sent
 		// which will shutdown the pipeline in intHandler(), which will in turn quit the main loop.
 		g_main_loop_run(loop);
-
+		cout << "After g_main_loop_run..." << endl;
 		// clean up
 		cout << "Stopping pipeline..." << endl;
 		gst_element_set_state(pipeline, GST_STATE_NULL);
 
 		camera.StopCamera();
 		camera.CloseCamera();
-		
-		gst_object_unref(GST_OBJECT(pipeline));
-		g_main_loop_unref(loop);
 
+		//cout << "Quitting Gmainloop..." << endl;
+		//g_main_loop_quit(loop);
+		cout << "Unref pipeline..." << endl;
+		gst_object_unref(GST_OBJECT(pipeline));
+		cout << "Unref Gmainloop..." << endl;
+		g_main_loop_unref(loop);
+		cout << "Exitcode..." << endl;
 		exitCode = 0;
 
 	}
@@ -496,8 +535,8 @@ gint main(gint argc, gchar *argv[])
 	}
 	
 	// Comment the following two lines to disable waiting on exit.
-	cerr << endl << "Press Enter to exit." << endl;
-	while (cin.get() != '\n');
+	//cerr << endl << "Press Enter to exit." << endl;
+	//while (cin.get() != '\n');
 	
 	return exitCode;
 }

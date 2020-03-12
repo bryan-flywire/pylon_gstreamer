@@ -24,6 +24,7 @@
 
 #include <stdio.h>
 #include <iostream>
+#include <ctime>
 
 using namespace std;
 
@@ -50,6 +51,30 @@ CPipelineHelper::CPipelineHelper(GstElement *pipeline, GstElement *source)
 
 CPipelineHelper::~CPipelineHelper()
 {
+}
+
+/*
+gchar* on_format_location(GstSplitMuxSink *splitmux, guint fragment_id, gpointer user_data){
+	return str("/home/pi/flywire/tmp/" + "filechanged_" + fragment_id + ".mp4")
+}
+*/
+gchar* _on_format_location(GstElement* splitmux, guint fragment_id, const int* offset)
+{
+	time_t curr_time = time(0);
+	tm* now = localtime(&curr_time);
+	string datetime = to_string(now->tm_year + 1900) + "." + to_string(now->tm_mon + 1) + "." + to_string(now->tm_mday) + "_" + to_string(now->tm_hour) + "." + to_string(now->tm_min) + "." + to_string(now->tm_sec) + "_";
+	string path = "/media/56C7-FC96/" + datetime + "_%04d.mp4";
+    const char* location = path.c_str();
+    gchar* fileName = g_strdup_printf(location, fragment_id + *offset);
+    //g_free(location);
+	cout << "FILENAME" << fileName << endl;
+    return fileName;
+}
+
+
+bool CPipelineHelper::close_pipeline(){
+	gst_element_send_event(m_source, gst_event_new_eos());
+	return true;
 }
 
 // example of how to create a pipeline for display in a window
@@ -147,9 +172,11 @@ bool CPipelineHelper::build_pipeline_h264file()
 		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
 
 		g_object_set(G_OBJECT(encode), "control-rate", 2, NULL);
-		g_object_set(G_OBJECT(encode), "bitrate", 10000000, NULL);
+		g_object_set(G_OBJECT(encode), "bitrate", 7853000, NULL);
 
 		g_object_set(G_OBJECT(sink), "location", "/media/56C7-FC96/video%02d.mp4", NULL);
+		int offset = 0; //No current use, example for adding future functionality
+		g_signal_connect (sink, "format-location", G_CALLBACK(_on_format_location), &offset);
 		g_object_set(G_OBJECT(sink), "max-size-time", 300000000000, NULL);
 
 		// add and link the pipeline elements
@@ -232,9 +259,11 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
 
 		g_object_set(G_OBJECT(encode), "control-rate", 2, NULL);
-		g_object_set(G_OBJECT(encode), "bitrate", 10000000, NULL);
+		g_object_set(G_OBJECT(encode), "bitrate", 7853000, NULL);
 
 		g_object_set(G_OBJECT(filesink), "location", "/media/56C7-FC96/video%02d.mp4", NULL);
+				int offset = 0; //No current use, example for adding future functionality
+		g_signal_connect (filesink, "format-location", G_CALLBACK(_on_format_location), &offset);
 		g_object_set(G_OBJECT(filesink), "max-size-time", 300000000000, NULL);
 
 		// add and link the pipeline elements
