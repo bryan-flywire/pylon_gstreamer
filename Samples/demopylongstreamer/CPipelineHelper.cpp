@@ -53,16 +53,12 @@ CPipelineHelper::~CPipelineHelper()
 {
 }
 
-/*
-gchar* on_format_location(GstSplitMuxSink *splitmux, guint fragment_id, gpointer user_data){
-	return str("/home/pi/flywire/tmp/" + "filechanged_" + fragment_id + ".mp4")
-}
-*/
+
 gchar* _on_format_location(GstElement* splitmux, guint fragment_id, const int* offset)
 {
 	time_t curr_time = time(0);
 	tm* now = localtime(&curr_time);
-	string datetime = to_string(now->tm_year + 1900) + "." + to_string(now->tm_mon + 1) + "." + to_string(now->tm_mday) + "_" + to_string(now->tm_hour) + "." + to_string(now->tm_min) + "." + to_string(now->tm_sec) + "_";
+	string datetime = to_string(now->tm_year + 1900).erase(0,2) + "." + to_string(now->tm_mon + 1) + "." + to_string(now->tm_mday) + "_" + to_string(now->tm_hour) + "." + to_string(now->tm_min) + "." + to_string(now->tm_sec) + "_";
 	string path = "/media/56C7-FC96/" + datetime + "_%04d.mp4";
     const char* location = path.c_str();
     gchar* fileName = g_strdup_printf(location, fragment_id + *offset);
