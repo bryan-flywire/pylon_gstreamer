@@ -35,6 +35,7 @@ public:
 	~CPipelineHelper();
 	
 	bool close_pipeline();
+	bool update_overlay(const gchar* updatetext);
 	// example of how to create a pipeline for display in a window
 	bool build_pipeline_display();
 

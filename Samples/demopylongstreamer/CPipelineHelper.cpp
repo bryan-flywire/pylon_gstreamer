@@ -40,6 +40,7 @@ static gboolean print_field (GQuark field, const GValue * value, gpointer pfx);
 static void print_caps (const GstCaps * caps, const gchar * pfx);
 static void print_pad_templates_information (GstElementFactory * factory);
 static void print_pad_capabilities (GstElement *element, gchar *pad_name);
+GstElement *overlay;
 // ****************************************************************************
 
 CPipelineHelper::CPipelineHelper(GstElement *pipeline, GstElement *source)
@@ -59,7 +60,8 @@ gchar* _on_format_location(GstElement* splitmux, guint fragment_id, const int* o
 	time_t curr_time = time(0);
 	tm* now = localtime(&curr_time);
 	string datetime = to_string(now->tm_year + 1900).erase(0,2) + "." + to_string(now->tm_mon + 1) + "." + to_string(now->tm_mday) + "_" + to_string(now->tm_hour) + "." + to_string(now->tm_min) + "." + to_string(now->tm_sec) + "_";
-	string path = "/media/56C7-FC96/" + datetime + "_%04d.mp4";
+	//string path = "/media/56C7-FC96/" + datetime + "_%04d.mp4";
+	string path = "/home/pi/flywire/tmp/" + datetime + "_%04d.mp4";
     const char* location = path.c_str();
     gchar* fileName = g_strdup_printf(location, fragment_id + *offset);
     //g_free(location);
@@ -71,6 +73,15 @@ gchar* _on_format_location(GstElement* splitmux, guint fragment_id, const int* o
 bool CPipelineHelper::close_pipeline(){
 	gst_element_send_event(m_source, gst_event_new_eos());
 	return true;
+}
+
+bool CPipelineHelper::update_overlay(const gchar* updatetext){
+	try{
+		cout << updatetext << endl;
+		g_object_set(G_OBJECT(overlay), "text", updatetext, NULL);
+	}catch (std::exception &e){
+		cerr << "An exception occurred in update_overlay: " << endl << e.what() << endl;
+	}
 }
 
 // example of how to create a pipeline for display in a window
@@ -94,10 +105,12 @@ bool CPipelineHelper::build_pipeline_display()
 		queue = gst_element_factory_make("queue", "queue");
 		videoflip = gst_element_factory_make("videoflip", "videoflip");
 		convert = gst_element_factory_make("videoconvert", "converter");
+		overlay = gst_element_factory_make("textoverlay", "textoverlay");
 		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
 		if (!videoflip){ cout << "Could not make videoflip" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
+		if (!overlay){ cout << "Could not make overlay" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
 		
 		// Set up elements
@@ -106,9 +119,11 @@ bool CPipelineHelper::build_pipeline_display()
 
 		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
 
+		g_object_set(G_OBJECT(overlay), "text", "Hello World", NULL);
+
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, videoflip, convert, sink, NULL);
-		gst_element_link_many(m_source, queue, videoflip, convert, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, videoflip, convert, overlay, sink, NULL);
+		gst_element_link_many(m_source, queue, videoflip, convert, overlay, sink, NULL);
 		
 		
 		cout << "Pipeline Made." << endl;

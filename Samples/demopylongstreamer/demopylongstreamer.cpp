@@ -165,6 +165,7 @@ gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 		default:
 			break;
 		}
+
 		/*
 		cout << "Main Loop Status: " << g_main_loop_is_running(loop) << endl;
 		if (g_main_loop_is_running(loop)){
@@ -399,13 +400,19 @@ int ParseCommandLine(gint argc, gchar *argv[])
 	}
 }
 
-void evalUsrInt(){
+void evalUsrInt(CPipelineHelper myPipelineHelper){
 	while(true){
 		cout << "waiting for input" << endl;
 		cin >> input;
 		cout << "Input: " << input << endl;
 		if (input == "EOS"){
 			IntHandler(0);
+		}
+		if (input == "MES"){
+			cout << "Before update overlay" << endl;
+			cin >> input;
+			myPipelineHelper.update_overlay((const gchar*) input.c_str());
+			cout << "After update overlay" << endl;
 		}
 	}
 }
@@ -427,9 +434,6 @@ gint main(gint argc, gchar *argv[])
 		// signal handler for ctrl+C
 		signal(SIGINT, IntHandler);
 		cout << "Press CTRL+C at any time to quit." << endl;
-
-		thread inptThread(evalUsrInt);
-		inptThread.detach();
 
 		// initialize GStreamer 
 		gst_init(NULL, NULL);
@@ -475,6 +479,9 @@ gint main(gint argc, gchar *argv[])
 		// Rescaling the image is optional. In this sample we do rescaling and rotation in the InstantCameraAppSrc.
 		CPipelineHelper myPipelineHelper(pipeline, source);
 
+		thread inptThread(evalUsrInt, myPipelineHelper);
+		inptThread.detach();
+
 		bool pipelineBuilt = false;
 
 		if (display == true)
@@ -519,7 +526,7 @@ gint main(gint argc, gchar *argv[])
 		cout << "Unref Gmainloop..." << endl;
 		g_main_loop_unref(loop);
 		cout << "Exitcode..." << endl;
-		exitCode = 0;
+		exitCode = 1;
 
 	}
 	catch (GenICam::GenericException &e)
