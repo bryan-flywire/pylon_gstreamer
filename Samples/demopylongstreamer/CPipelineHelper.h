@@ -38,11 +38,11 @@ public:
 	bool update_overlay(const gchar* updatetext);
 	// example of how to create a pipeline for display in a window
 	bool build_pipeline_display();
-
-	// example of how to create a pipeline for encoding images in h264 format and streaming to local video file
 	bool build_pipeline_h264file();
-
 	bool build_pipeline_display_h264file();
+	bool build_pipeline_camfail();
+	bool build_pipeline_syserr();
+	
 private:
 	bool m_pipelineBuilt;
 	GstElement *m_pipeline;

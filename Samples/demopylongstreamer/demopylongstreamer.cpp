@@ -207,6 +207,8 @@ bool h264multicast = false;
 bool h264file = false;
 bool display = false;
 bool displayh264file = false;
+bool camfail = false;
+bool syserr = false;
 bool framebuffer = false;
 bool parsestring = false;
 bool onDemand = false;
@@ -366,9 +368,17 @@ int ParseCommandLine(gint argc, gchar *argv[])
 			{
 				display = true;
 			}
+			else if (string(argv[i]) == "-camfail")
+			{
+				camfail = true;
+			}
+			else if (string(argv[i]) == "-syserr")
+			{
+				syserr = true;
+			}
 		}
 
-		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring };
+		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring, camfail, syserr };
 		int pipelinesRequested = 0;
 
 		for (int i = 0; i < sizeof(pipelinesAvailable); i++)
@@ -490,6 +500,11 @@ gint main(gint argc, gchar *argv[])
 			pipelineBuilt = myPipelineHelper.build_pipeline_h264file();
 		else if (displayh264file == true)
 			pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file();
+		else if (camfail == true)
+			pipelineBuilt = myPipelineHelper.build_pipeline_camfail();
+		else if (syserr == true)
+			pipelineBuilt = myPipelineHelper.build_pipeline_syserr();
+
 
 		if (pipelineBuilt == false)
 		{
@@ -514,9 +529,12 @@ gint main(gint argc, gchar *argv[])
 		cout << "After g_main_loop_run..." << endl;
 		// clean up
 		cout << "Stopping pipeline..." << endl;
+		gst_element_set_state(pipeline, GST_STATE_PAUSED);
+		gst_element_set_state(pipeline, GST_STATE_READY);
 		gst_element_set_state(pipeline, GST_STATE_NULL);
-
+		cout << "Stopping Camera..." << endl;
 		camera.StopCamera();
+		cout << "Closing Camera..." << endl;
 		camera.CloseCamera();
 
 		//cout << "Quitting Gmainloop..." << endl;

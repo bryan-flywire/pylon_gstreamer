@@ -224,6 +224,7 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		GstElement *tee;
 
 		GstElement *dispqueue;
+		GstElement *overlay;
 		GstElement *dispsink;
 
 		GstElement *recqueue;
@@ -240,6 +241,7 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 
 		dispqueue = gst_element_factory_make("queue", "queue1");
 		//dispsink = gst_element_factory_make("autovideosink", "videosink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+		overlay = gst_element_factory_make("textoverlay", "textoverlay");		
 		dispsink = gst_element_factory_make("nveglglessink", "nveglglessink");
 
 		recqueue = gst_element_factory_make("queue", "queu2e");
@@ -253,6 +255,7 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		if (!tee){ cout << "Could not make tee" << endl; return false; }
 
 		if (!dispqueue){ cout << "Could not make dispqueue" << endl; return false; }
+		if (!overlay){ cout << "Could not make overlay" << endl; return false; }
 		if (!dispsink){ cout << "Could not make dispsink" << endl; return false; }
 
 		if (!recqueue){ cout << "Could not make recqueue" << endl; return false; }
@@ -264,6 +267,13 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		g_object_set(G_OBJECT(pipequeue), "max-size-time", 2500000000, NULL);
 		g_object_set(G_OBJECT(recqueue), "leaky", 2, NULL);
 		g_object_set(G_OBJECT(recqueue), "max-size-time", 2500000000, NULL);
+
+		g_object_set(G_OBJECT(overlay), "text", "Recording", NULL);
+		g_object_set(G_OBJECT(overlay), "color", 4294901760, NULL); // #AARRGGBB -> int
+		g_object_set(G_OBJECT(overlay), "draw-outline", 0, NULL);
+		//g_object_set(G_OBJECT(overlay), "ypad", 25, NULL); 
+		g_object_set(G_OBJECT(overlay), "font-desc", "Sans, 15", NULL); 
+
 		g_object_set(G_OBJECT(dispqueue), "leaky", 2, NULL);
 		g_object_set(G_OBJECT(dispqueue), "max-size-time", 2500000000, NULL);
 
@@ -278,9 +288,9 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		g_object_set(G_OBJECT(filesink), "max-size-time", 300000000000, NULL);
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, dispsink, recqueue, encode, parse, filesink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, overlay, dispsink, recqueue, encode, parse, filesink, NULL);
 		gst_element_link_many(m_source, pipequeue, videoflip, convert, tee, NULL);
-		gst_element_link_many(tee, dispqueue, dispsink, NULL);
+		gst_element_link_many(tee, dispqueue, overlay, dispsink, NULL);
 		gst_element_link_many(tee, recqueue, encode, parse, filesink, NULL);
 		
 		
@@ -295,6 +305,144 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		cerr << "An exception occurred in build_pipeline_display_h264file(): " << endl << e.what() << endl;
 		gst_element_send_event(m_source, gst_event_new_eos());
 		return false;
+	}
+}
+
+bool CPipelineHelper::build_pipeline_camfail()
+{
+	try
+	{
+		if (m_pipelineBuilt == true)
+		{
+			cout << "Cancelling -display. Another pipeline has already been built." << endl;
+			return false;
+		}
+
+		GstElement *source;
+		GstElement *filter;
+		GstCaps *filter_caps;
+		GstElement *convert;
+		GstElement *overlay;
+		GstElement *sink;
+
+		cout << "Creating Pipeline for displaying images in local window..." << endl;
+		// Create gstreamer elements
+		source = gst_element_factory_make("videotestsrc", "videotestsrc");
+		filter = gst_element_factory_make("capsfilter", "capsfilter");
+		convert = gst_element_factory_make("videoconvert", "converter");
+		overlay = gst_element_factory_make("textoverlay", "textoverlay");
+		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+
+		if (!source){ cout << "Could not make videotestsrc" << endl; return false; }
+		if (!filter){ cout << "Could not make filter" << endl; return false; }
+		if (!convert){ cout << "Could not make convert" << endl; return false; }
+		if (!overlay){ cout << "Could not make overlay" << endl; return false; }
+		if (!sink){ cout << "Could not make sink" << endl; return false; }
+		
+		// Set up elements
+		//g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
+		//g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
+
+		filter_caps = gst_caps_new_simple("video/x-raw",
+		  "width", G_TYPE_STRING, "1920",
+		  "height", G_TYPE_STRING, "1080",
+		  "framerate", GST_TYPE_FRACTION, 25, 1, 
+		  NULL);
+
+		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
+
+		g_object_set(G_OBJECT(overlay), "text", "CAMERA ERROR", NULL);
+		g_object_set(G_OBJECT(overlay), "color", 4294901760, NULL); // #AARRGGBB -> int
+		g_object_set(G_OBJECT(overlay), "draw-outline", 0, NULL);
+		g_object_set(G_OBJECT(overlay), "ypad", 50, NULL); 
+		g_object_set(G_OBJECT(overlay), "font-desc", "Sans, 72", NULL); 
+
+		// add and link the pipeline elements
+		gst_bin_add_many(GST_BIN(m_pipeline), source, convert, overlay, sink, NULL);
+		gst_element_link_many(source, convert, overlay, sink, NULL);
+		
+		
+		cout << "Pipeline Made." << endl;
+		
+		m_pipelineBuilt = true;
+
+		return true;
+	}
+	catch (std::exception &e)
+	{
+		cerr << "An exception occurred in build_pipeline_display(): " << endl << e.what() << endl;
+		gst_element_send_event(m_source, gst_event_new_eos());
+		return false;
+		
+	}
+}
+
+bool CPipelineHelper::build_pipeline_syserr()
+{
+	try
+	{
+		if (m_pipelineBuilt == true)
+		{
+			cout << "Cancelling -display. Another pipeline has already been built." << endl;
+			return false;
+		}
+
+		GstElement *source;
+		GstElement *filter;
+		GstCaps *filter_caps;
+		GstElement *convert;
+		GstElement *overlay;
+		GstElement *sink;
+
+		cout << "Creating Pipeline for displaying images in local window..." << endl;
+		// Create gstreamer elements
+		source = gst_element_factory_make("videotestsrc", "videotestsrc");
+		filter = gst_element_factory_make("capsfilter", "capsfilter");
+		convert = gst_element_factory_make("videoconvert", "converter");
+		overlay = gst_element_factory_make("textoverlay", "textoverlay");
+		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+
+		if (!source){ cout << "Could not make videotestsrc" << endl; return false; }
+		if (!filter){ cout << "Could not make filter" << endl; return false; }
+		if (!convert){ cout << "Could not make convert" << endl; return false; }
+		if (!overlay){ cout << "Could not make overlay" << endl; return false; }
+		if (!sink){ cout << "Could not make sink" << endl; return false; }
+		
+		// Set up elements
+		//g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
+		//g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
+
+		filter_caps = gst_caps_new_simple("video/x-raw",
+		  "width", G_TYPE_STRING, "1920",
+		  "height", G_TYPE_STRING, "1080",
+		  "framerate", GST_TYPE_FRACTION, 25, 1, 
+		  NULL);
+
+		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
+
+		g_object_set(G_OBJECT(overlay), "text", "SYSTEM ERROR", NULL);
+		g_object_set(G_OBJECT(overlay), "color", 4294901760, NULL); // #AARRGGBB -> int
+		g_object_set(G_OBJECT(overlay), "draw-outline", 0, NULL);
+		g_object_set(G_OBJECT(overlay), "ypad", 50, NULL); 
+		g_object_set(G_OBJECT(overlay), "font-desc", "Sans, 72", NULL); 
+
+		// add and link the pipeline elements
+		gst_bin_add_many(GST_BIN(m_pipeline), source, convert, overlay, sink, NULL);
+		gst_element_link_many(source, convert, overlay, sink, NULL);
+		
+		
+		cout << "Pipeline Made." << endl;
+		
+		m_pipelineBuilt = true;
+
+		return true;
+	}
+	catch (std::exception &e)
+	{
+		cerr << "An exception occurred in build_pipeline_display(): " << endl << e.what() << endl;
+		gst_element_send_event(m_source, gst_event_new_eos());
+		return false;
+		
 	}
 }
 
