@@ -271,7 +271,7 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		g_object_set(G_OBJECT(overlay), "text", "Recording", NULL);
 		g_object_set(G_OBJECT(overlay), "color", 4294901760, NULL); // #AARRGGBB -> int
 		g_object_set(G_OBJECT(overlay), "draw-outline", 0, NULL);
-		//g_object_set(G_OBJECT(overlay), "ypad", 25, NULL); 
+		g_object_set(G_OBJECT(overlay), "deltax", -500, NULL); 
 		g_object_set(G_OBJECT(overlay), "font-desc", "Sans, 15", NULL); 
 
 		g_object_set(G_OBJECT(dispqueue), "leaky", 2, NULL);
