@@ -59,13 +59,36 @@ gchar* _on_format_location(GstElement* splitmux, guint fragment_id, const int* o
 {
 	time_t curr_time = time(0);
 	tm* now = localtime(&curr_time);
-	string datetime = to_string(now->tm_year + 1900).erase(0,2) + "." + to_string(now->tm_mon + 1) + "." + to_string(now->tm_mday) + "_" + to_string(now->tm_hour) + "." + to_string(now->tm_min) + "." + to_string(now->tm_sec) + "_";
+	string year = to_string(now->tm_year + 1900).erase(0,2);
+	//TODO: Fix sigfig hack
+	string month = to_string(now->tm_mon + 1);
+	if (month.length() < 2){
+		month = "0" + month;
+	}
+	string day = to_string(now->tm_mday);
+	if (day.length() < 2){
+		day = "0" + day;
+	}
+	string hour = to_string(now->tm_hour);
+	if (hour.length() < 2){
+		hour = "0" + hour;
+	}
+	string min = to_string(now->tm_min);
+	if (min.length() < 2){
+		min = "0" + min;
+	}
+	string sec = to_string(now->tm_sec);
+	if (sec.length() < 2){
+		sec = "0" + sec;
+	}
+	string datetime =  year + "." + month + "." + day + "_" + hour + "." + min + "." + sec + "_";
 	//string path = "/media/56C7-FC96/" + datetime + "_%04d.mp4";
 	string path = "/home/pi/flywire/tmp/" + datetime + "_%04d.mp4";
     const char* location = path.c_str();
-    gchar* fileName = g_strdup_printf(location, fragment_id + *offset);
+    //gchar* fileName = g_strdup_printf(location, fragment_id + *offset);
+	gchar* fileName = g_strdup_printf(location, fragment_id);
+	cout << fileName << endl;
     //g_free(location);
-	cout << "FILENAME" << fileName << endl;
     return fileName;
 }
 
