@@ -202,6 +202,7 @@ int numImagesToRecord = -1; // capture indefinitley unless otherwise specified.
 int scaledWidth = -1; // do not scale by default
 int scaledHeight = -1;
 int rotation = -1; // do not rotate or flip image by default
+bool needCam = false;
 bool h264stream = false;
 bool h264multicast = false;
 bool h264file = false;
@@ -358,22 +359,27 @@ int ParseCommandLine(gint argc, gchar *argv[])
 			}
 			else if (string(argv[i]) == "-displayh264file")
 			{
+				needCam = true;
 				displayh264file = true;
 			}
 			else if (string(argv[i]) == "-h264file")
 			{
+				needCam = true;
 				h264file = true;
 			}
 			else if (string(argv[i]) == "-window")
 			{
+				needCam = true;
 				display = true;
 			}
 			else if (string(argv[i]) == "-camfail")
 			{
+				needCam = false;
 				camfail = true;
 			}
 			else if (string(argv[i]) == "-syserr")
 			{
+				needCam = false;
 				syserr = true;
 			}
 		}
@@ -451,92 +457,148 @@ gint main(gint argc, gchar *argv[])
 		// create the mainloop
 		loop = g_main_loop_new(NULL, FALSE);
 
-		// The InstantCameraForAppSrc will manage the camera and driver
-		// and provide a source element to the GStreamer pipeline.
-		CInstantCameraAppSrc camera(serialNumber);
+		if (needCam == true) {
+			// The InstantCameraForAppSrc will manage the camera and driver
+			// and provide a source element to the GStreamer pipeline.
+			CInstantCameraAppSrc camera(serialNumber);
 
-		// reset the camera to defaults if you like
-		cout << "Resetting camera to default settings..." << endl;
-		camera.ResetCamera();
+			// reset the camera to defaults if you like
+			cout << "Resetting camera to default settings..." << endl;
+			camera.ResetCamera();
 
-		// Initialize the camera and driver
-		cout << "Initializing camera and driver..." << endl;
-		camera.InitCamera(1080, 1920, 25, onDemand, useTrigger, scaledWidth, scaledHeight, rotation, numImagesToRecord);		
+			// Initialize the camera and driver
+			cout << "Initializing camera and driver..." << endl;
+			camera.InitCamera(1080, 1920, 25, onDemand, useTrigger, scaledWidth, scaledHeight, rotation, numImagesToRecord);		
 
-		cout << "Using Camera             : " << camera.GetDeviceInfo().GetFriendlyName() << endl;
-		cout << "Camera Area Of Interest  : " << camera.GetWidth() << "x" << camera.GetHeight() << endl;
-		cout << "Camera Speed             : " << camera.GetFrameRate() << " fps" << endl;
-		if (scaledWidth != -1 && scaledHeight != -1)
-			cout << "Images will be scaled to : " << scaledWidth << "x" << scaledHeight << endl;
-		if (rotation != -1)
-			cout << "Images will be rotated   : " << rotation << " degrees clockwise" << endl;
+			cout << "Using Camera             : " << camera.GetDeviceInfo().GetFriendlyName() << endl;
+			cout << "Camera Area Of Interest  : " << camera.GetWidth() << "x" << camera.GetHeight() << endl;
+			cout << "Camera Speed             : " << camera.GetFrameRate() << " fps" << endl;
+			if (scaledWidth != -1 && scaledHeight != -1)
+				cout << "Images will be scaled to : " << scaledWidth << "x" << scaledHeight << endl;
+			if (rotation != -1)
+				cout << "Images will be rotated   : " << rotation << " degrees clockwise" << endl;
 
-		// create a new pipeline to add elements too
-		pipeline = gst_pipeline_new("pipeline");
+			// create a new pipeline to add elements too
+			pipeline = gst_pipeline_new("pipeline");
 
-		// prepare a handler (watcher) for messages from the pipeline
-		bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
-		bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
-		gst_object_unref(bus);
+			// prepare a handler (watcher) for messages from the pipeline
+			bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
+			bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
+			gst_object_unref(bus);
 
-		// A pipeline needs a source element. The InstantCameraForAppSrc will create, configure, and provide an AppSrc which fits the camera.
-		GstElement *source = camera.GetSource();
-		
-		// Build the rest of the pipeline based on the sample chosen.
-		// The PipelineHelper will manage the configuration of GStreamer pipelines.  
-		// The pipeline helper can be expanded to create several kinds of pipelines
-		// as these can depend heavily on the application and host capabilities.
-		// Rescaling the image is optional. In this sample we do rescaling and rotation in the InstantCameraAppSrc.
-		CPipelineHelper myPipelineHelper(pipeline, source);
+			// A pipeline needs a source element. The InstantCameraForAppSrc will create, configure, and provide an AppSrc which fits the camera.
+			GstElement *source = camera.GetSource();
+			
+			// Build the rest of the pipeline based on the sample chosen.
+			// The PipelineHelper will manage the configuration of GStreamer pipelines.  
+			// The pipeline helper can be expanded to create several kinds of pipelines
+			// as these can depend heavily on the application and host capabilities.
+			// Rescaling the image is optional. In this sample we do rescaling and rotation in the InstantCameraAppSrc.
+			CPipelineHelper myPipelineHelper(pipeline, source);
 
-		thread inptThread(evalUsrInt, myPipelineHelper);
-		inptThread.detach();
+			thread inptThread(evalUsrInt, myPipelineHelper);
+			inptThread.detach();
 
-		bool pipelineBuilt = false;
+			bool pipelineBuilt = false;
 
-		if (display == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_display();
-		else if (h264file == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_h264file();
-		else if (displayh264file == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file();
-		else if (camfail == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_camfail();
-		else if (syserr == true)
-			pipelineBuilt = myPipelineHelper.build_pipeline_syserr();
+			if (display == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_display();
+			else if (h264file == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_h264file();
+			else if (displayh264file == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file();
+			else if (camfail == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_camfail();
+			else if (syserr == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_syserr();
 
 
-		if (pipelineBuilt == false)
-		{
-			exitCode = -1;
-			throw std::runtime_error("Pipeline building failed!");
+			if (pipelineBuilt == false)
+			{
+				exitCode = -1;
+				throw std::runtime_error("Pipeline building failed!");
+			}
+
+			// Start the camera and grab engine.
+			if (camera.StartCamera() == false)
+			{
+				exitCode = -1;
+				throw std::runtime_error("Could not start camera!");
+			}
+			
+			// Start the pipeline.
+			cout << "Starting pipeline..." << endl;
+			gst_element_set_state(pipeline, GST_STATE_PLAYING);
+
+			// run the main loop. When Ctrl+C is pressed, an EOS event will be sent
+			// which will shutdown the pipeline in intHandler(), which will in turn quit the main loop.
+			g_main_loop_run(loop);
+			cout << "After g_main_loop_run..." << endl;
+			// clean up
+			cout << "Stopping pipeline..." << endl;
+			gst_element_set_state(pipeline, GST_STATE_PAUSED);
+			gst_element_set_state(pipeline, GST_STATE_READY);
+			gst_element_set_state(pipeline, GST_STATE_NULL);
+			cout << "Stopping Camera..." << endl;
+			camera.StopCamera();
+			cout << "Closing Camera..." << endl;
+			camera.CloseCamera();
+		} else{
+			// create a new pipeline to add elements too
+			pipeline = gst_pipeline_new("pipeline");
+
+			// prepare a handler (watcher) for messages from the pipeline
+			bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
+			bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
+			gst_object_unref(bus);
+
+			// A pipeline needs a source element. The InstantCameraForAppSrc will create, configure, and provide an AppSrc which fits the camera.
+			GstElement *source = gst_element_factory_make("videotestsrc", "videotestsrc");
+			
+			// Build the rest of the pipeline based on the sample chosen.
+			// The PipelineHelper will manage the configuration of GStreamer pipelines.  
+			// The pipeline helper can be expanded to create several kinds of pipelines
+			// as these can depend heavily on the application and host capabilities.
+			// Rescaling the image is optional. In this sample we do rescaling and rotation in the InstantCameraAppSrc.
+			CPipelineHelper myPipelineHelper(pipeline, source);
+
+			thread inptThread(evalUsrInt, myPipelineHelper);
+			inptThread.detach();
+
+			bool pipelineBuilt = false;
+
+			if (display == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_display();
+			else if (h264file == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_h264file();
+			else if (displayh264file == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file();
+			else if (camfail == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_camfail();
+			else if (syserr == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_syserr();
+
+
+			if (pipelineBuilt == false)
+			{
+				exitCode = -1;
+				throw std::runtime_error("Pipeline building failed!");
+			}
+
+			// Start the pipeline.
+			cout << "Starting pipeline..." << endl;
+			gst_element_set_state(pipeline, GST_STATE_PLAYING);
+
+			// run the main loop. When Ctrl+C is pressed, an EOS event will be sent
+			// which will shutdown the pipeline in intHandler(), which will in turn quit the main loop.
+			g_main_loop_run(loop);
+			cout << "After g_main_loop_run..." << endl;
+			// clean up
+			cout << "Stopping pipeline..." << endl;
+			gst_element_set_state(pipeline, GST_STATE_PAUSED);
+			gst_element_set_state(pipeline, GST_STATE_READY);
+			gst_element_set_state(pipeline, GST_STATE_NULL);
 		}
-
-		// Start the camera and grab engine.
-		if (camera.StartCamera() == false)
-		{
-			exitCode = -1;
-			throw std::runtime_error("Could not start camera!");
-		}
-		
-		// Start the pipeline.
-		cout << "Starting pipeline..." << endl;
-		gst_element_set_state(pipeline, GST_STATE_PLAYING);
-
-		// run the main loop. When Ctrl+C is pressed, an EOS event will be sent
-		// which will shutdown the pipeline in intHandler(), which will in turn quit the main loop.
-		g_main_loop_run(loop);
-		cout << "After g_main_loop_run..." << endl;
-		// clean up
-		cout << "Stopping pipeline..." << endl;
-		gst_element_set_state(pipeline, GST_STATE_PAUSED);
-		gst_element_set_state(pipeline, GST_STATE_READY);
-		gst_element_set_state(pipeline, GST_STATE_NULL);
-		cout << "Stopping Camera..." << endl;
-		camera.StopCamera();
-		cout << "Closing Camera..." << endl;
-		camera.CloseCamera();
-
 		//cout << "Quitting Gmainloop..." << endl;
 		//g_main_loop_quit(loop);
 		cout << "Unref pipeline..." << endl;
