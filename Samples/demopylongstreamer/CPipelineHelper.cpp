@@ -128,12 +128,10 @@ bool CPipelineHelper::build_pipeline_display()
 		queue = gst_element_factory_make("queue", "queue");
 		videoflip = gst_element_factory_make("videoflip", "videoflip");
 		convert = gst_element_factory_make("videoconvert", "converter");
-		overlay = gst_element_factory_make("textoverlay", "textoverlay");
 		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
 		if (!videoflip){ cout << "Could not make videoflip" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
-		if (!overlay){ cout << "Could not make overlay" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
 		
 		// Set up elements
@@ -142,11 +140,10 @@ bool CPipelineHelper::build_pipeline_display()
 
 		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
 
-		g_object_set(G_OBJECT(overlay), "text", "Hello World", NULL);
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, videoflip, convert, overlay, sink, NULL);
-		gst_element_link_many(m_source, queue, videoflip, convert, overlay, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, videoflip, convert, sink, NULL);
+		gst_element_link_many(m_source, queue, videoflip, convert, sink, NULL);
 		
 		
 		cout << "Pipeline Made." << endl;
@@ -345,7 +342,8 @@ bool CPipelineHelper::build_pipeline_camfail()
 		GstElement *filter;
 		GstCaps *filter_caps;
 		GstElement *convert;
-		GstElement *overlay;
+		GstElement *errmess;
+		GstElement *errinfo;
 		GstElement *sink;
 
 		cout << "Creating Pipeline for displaying images in local window..." << endl;
@@ -353,36 +351,112 @@ bool CPipelineHelper::build_pipeline_camfail()
 		source = gst_element_factory_make("videotestsrc", "videotestsrc");
 		filter = gst_element_factory_make("capsfilter", "capsfilter");
 		convert = gst_element_factory_make("videoconvert", "converter");
-		overlay = gst_element_factory_make("textoverlay", "textoverlay");
+		errmess = gst_element_factory_make("textoverlay", "textoverlay");
+		errinfo = gst_element_factory_make("textoverlay", "textoverlay2");
 		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
 		if (!source){ cout << "Could not make videotestsrc" << endl; return false; }
 		if (!filter){ cout << "Could not make filter" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
-		if (!overlay){ cout << "Could not make overlay" << endl; return false; }
+		if (!errmess){ cout << "Could not make errmess" << endl; return false; }
+		if (!errinfo){ cout << "Could not make errinfo" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
 		
 		// Set up elements
 		//g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
 		//g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
 
+		filter = gst_element_factory_make("capsfilter", "filter");
 		filter_caps = gst_caps_new_simple("video/x-raw",
-		  "width", G_TYPE_STRING, "1920",
-		  "height", G_TYPE_STRING, "1080",
-		  "framerate", GST_TYPE_FRACTION, 25, 1, 
+		  	"width", G_TYPE_INT, 1920,
+        	"height", G_TYPE_INT, 1080,
 		  NULL);
-
+		
 		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
+		gst_caps_unref(filter_caps);
 
-		g_object_set(G_OBJECT(overlay), "text", "CAMERA ERROR", NULL);
-		g_object_set(G_OBJECT(overlay), "color", 4294901760, NULL); // #AARRGGBB -> int
-		g_object_set(G_OBJECT(overlay), "draw-outline", 0, NULL);
-		g_object_set(G_OBJECT(overlay), "ypad", 50, NULL); 
-		g_object_set(G_OBJECT(overlay), "font-desc", "Sans, 72", NULL); 
+		g_object_set(G_OBJECT(errmess), "text", "CAMERA FAILURE", NULL);
+		g_object_set(G_OBJECT(errmess), "color", 4294901760, NULL); // #AARRGGBB -> int
+		g_object_set(G_OBJECT(errmess), "draw-outline", 0, NULL);
+		g_object_set(G_OBJECT(errmess), "ypad", 225, NULL); 
+		g_object_set(G_OBJECT(errmess), "font-desc", "Sans, 65", NULL); 
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), source, convert, overlay, sink, NULL);
-		gst_element_link_many(source, convert, overlay, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), source, filter, convert, errmess, errinfo, sink, NULL);
+		gst_element_link_many(source, filter, convert, errmess, errinfo, sink, NULL);
+		
+		
+		cout << "Pipeline Made." << endl;
+		
+		m_pipelineBuilt = true;
+
+		return true;
+	}
+	catch (std::exception &e)
+	{
+		cerr << "An exception occurred in build_pipeline_display(): " << endl << e.what() << endl;
+		gst_element_send_event(m_source, gst_event_new_eos());
+		return false;
+		
+	}
+}
+
+bool CPipelineHelper::build_pipeline_powerfail()
+{
+	try
+	{
+		if (m_pipelineBuilt == true)
+		{
+			cout << "Cancelling -display. Another pipeline has already been built." << endl;
+			return false;
+		}
+
+		GstElement *source;
+		GstElement *filter;
+		GstCaps *filter_caps;
+		GstElement *convert;
+		GstElement *errmess;
+		GstElement *errinfo;
+		GstElement *sink;
+
+		cout << "Creating Pipeline for displaying images in local window..." << endl;
+		// Create gstreamer elements
+		source = gst_element_factory_make("videotestsrc", "videotestsrc");
+		filter = gst_element_factory_make("capsfilter", "capsfilter");
+		convert = gst_element_factory_make("videoconvert", "converter");
+		errmess = gst_element_factory_make("textoverlay", "textoverlay");
+		errinfo = gst_element_factory_make("textoverlay", "textoverlay2");
+		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+
+		if (!source){ cout << "Could not make videotestsrc" << endl; return false; }
+		if (!filter){ cout << "Could not make filter" << endl; return false; }
+		if (!convert){ cout << "Could not make convert" << endl; return false; }
+		if (!errmess){ cout << "Could not make errmess" << endl; return false; }
+		if (!errinfo){ cout << "Could not make errinfo" << endl; return false; }
+		if (!sink){ cout << "Could not make sink" << endl; return false; }
+		
+		// Set up elements
+		//g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
+		//g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
+
+		filter = gst_element_factory_make("capsfilter", "filter");
+		filter_caps = gst_caps_new_simple("video/x-raw",
+		  	"width", G_TYPE_INT, 1920,
+        	"height", G_TYPE_INT, 1080,
+		  NULL);
+		
+		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
+		gst_caps_unref(filter_caps);
+
+		g_object_set(G_OBJECT(errmess), "text", "LOW POWER", NULL);
+		g_object_set(G_OBJECT(errmess), "color", 4294901760, NULL); // #AARRGGBB -> int
+		g_object_set(G_OBJECT(errmess), "draw-outline", 0, NULL);
+		g_object_set(G_OBJECT(errmess), "ypad", 225, NULL); 
+		g_object_set(G_OBJECT(errmess), "font-desc", "Sans, 65", NULL); 
+
+		// add and link the pipeline elements
+		gst_bin_add_many(GST_BIN(m_pipeline), source, filter, convert, errmess, errinfo, sink, NULL);
+		gst_element_link_many(source, filter, convert, errmess, errinfo, sink, NULL);
 		
 		
 		cout << "Pipeline Made." << endl;
@@ -414,7 +488,8 @@ bool CPipelineHelper::build_pipeline_syserr()
 		GstElement *filter;
 		GstCaps *filter_caps;
 		GstElement *convert;
-		GstElement *overlay;
+		GstElement *errmess;
+		GstElement *errinfo;
 		GstElement *sink;
 
 		cout << "Creating Pipeline for displaying images in local window..." << endl;
@@ -422,36 +497,39 @@ bool CPipelineHelper::build_pipeline_syserr()
 		source = gst_element_factory_make("videotestsrc", "videotestsrc");
 		filter = gst_element_factory_make("capsfilter", "capsfilter");
 		convert = gst_element_factory_make("videoconvert", "converter");
-		overlay = gst_element_factory_make("textoverlay", "textoverlay");
+		errmess = gst_element_factory_make("textoverlay", "textoverlay");
+		errinfo = gst_element_factory_make("textoverlay", "textoverlay2");
 		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
 		if (!source){ cout << "Could not make videotestsrc" << endl; return false; }
 		if (!filter){ cout << "Could not make filter" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
-		if (!overlay){ cout << "Could not make overlay" << endl; return false; }
+		if (!errmess){ cout << "Could not make errmess" << endl; return false; }
+		if (!errinfo){ cout << "Could not make errinfo" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
 		
 		// Set up elements
 		//g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
 		//g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
 
+		filter = gst_element_factory_make("capsfilter", "filter");
 		filter_caps = gst_caps_new_simple("video/x-raw",
-		  "width", G_TYPE_STRING, "1920",
-		  "height", G_TYPE_STRING, "1080",
-		  "framerate", GST_TYPE_FRACTION, 25, 1, 
+		  	"width", G_TYPE_INT, 1920,
+        	"height", G_TYPE_INT, 1080,
 		  NULL);
-
+		
 		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
+		gst_caps_unref(filter_caps);
 
-		g_object_set(G_OBJECT(overlay), "text", "SYSTEM ERROR", NULL);
-		g_object_set(G_OBJECT(overlay), "color", 4294901760, NULL); // #AARRGGBB -> int
-		g_object_set(G_OBJECT(overlay), "draw-outline", 0, NULL);
-		g_object_set(G_OBJECT(overlay), "ypad", 50, NULL); 
-		g_object_set(G_OBJECT(overlay), "font-desc", "Sans, 72", NULL); 
+		g_object_set(G_OBJECT(errmess), "text", "RESTART SYSTEM", NULL);
+		g_object_set(G_OBJECT(errmess), "color", 4294901760, NULL); // #AARRGGBB -> int
+		g_object_set(G_OBJECT(errmess), "draw-outline", 0, NULL);
+		g_object_set(G_OBJECT(errmess), "ypad", 225, NULL); 
+		g_object_set(G_OBJECT(errmess), "font-desc", "Sans, 65", NULL); 
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), source, convert, overlay, sink, NULL);
-		gst_element_link_many(source, convert, overlay, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), source, filter, convert, errmess, errinfo, sink, NULL);
+		gst_element_link_many(source, filter, convert, errmess, errinfo, sink, NULL);
 		
 		
 		cout << "Pipeline Made." << endl;

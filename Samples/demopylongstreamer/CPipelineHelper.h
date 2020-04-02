@@ -42,6 +42,7 @@ public:
 	bool build_pipeline_display_h264file();
 	bool build_pipeline_camfail();
 	bool build_pipeline_syserr();
+	bool build_pipeline_powerfail();
 	
 private:
 	bool m_pipelineBuilt;

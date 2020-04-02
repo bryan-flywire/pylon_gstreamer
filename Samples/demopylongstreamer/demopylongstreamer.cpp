@@ -209,6 +209,7 @@ bool h264file = false;
 bool display = false;
 bool displayh264file = false;
 bool camfail = false;
+bool powfail = false;
 bool syserr = false;
 bool framebuffer = false;
 bool parsestring = false;
@@ -382,9 +383,14 @@ int ParseCommandLine(gint argc, gchar *argv[])
 				needCam = false;
 				syserr = true;
 			}
+			else if (string(argv[i]) == "-powfail")
+			{
+				needCam = false;
+				powfail = true;
+			}
 		}
 
-		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring, camfail, syserr };
+		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring, camfail, syserr, powfail };
 		int pipelinesRequested = 0;
 
 		for (int i = 0; i < sizeof(pipelinesAvailable); i++)
@@ -511,6 +517,8 @@ gint main(gint argc, gchar *argv[])
 				pipelineBuilt = myPipelineHelper.build_pipeline_camfail();
 			else if (syserr == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_syserr();
+			else if (powfail == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_powerfail();
 
 
 			if (pipelineBuilt == false)
@@ -577,6 +585,8 @@ gint main(gint argc, gchar *argv[])
 				pipelineBuilt = myPipelineHelper.build_pipeline_camfail();
 			else if (syserr == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_syserr();
+			else if (powfail == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_powerfail();
 
 
 			if (pipelineBuilt == false)
