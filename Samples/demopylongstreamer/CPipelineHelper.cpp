@@ -123,12 +123,15 @@ bool CPipelineHelper::build_pipeline_display()
 		GstElement *convert;
 		GstElement *sink;
 
+		//sudo ./demopylongstreamer -parse "gst-launch-1.0 videotestsrc ! videoflip method=vertical-flip ! videoconvert ! nvoverlaysink"
+
+
 		cout << "Creating Pipeline for displaying images in local window..." << endl;
 		// Create gstreamer elements
 		queue = gst_element_factory_make("queue", "queue");
 		videoflip = gst_element_factory_make("videoflip", "videoflip");
 		convert = gst_element_factory_make("videoconvert", "converter");
-		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+		sink = gst_element_factory_make("nvoverlaysink", "nvoverlaysink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
 		if (!videoflip){ cout << "Could not make videoflip" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
@@ -138,12 +141,15 @@ bool CPipelineHelper::build_pipeline_display()
 		g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
 		g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
 
+		//g_object_set(G_OBJECT(videoflip), "method", "vertical-flip", NULL);
 		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
 
+		g_object_set(G_OBJECT(sink), "sync", 0, NULL); 
+		g_object_set(G_OBJECT(sink), "enable-last-sample", 0, NULL);
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, videoflip, convert, sink, NULL);
-		gst_element_link_many(m_source, queue, videoflip, convert, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, videoflip, convert, sink, NULL);
+		gst_element_link_many(m_source, videoflip, convert, sink, NULL);
 		
 		
 		cout << "Pipeline Made." << endl;
@@ -230,7 +236,7 @@ bool CPipelineHelper::build_pipeline_h264file()
 
 bool CPipelineHelper::build_pipeline_display_h264file()
 {
-	try
+try
 	{
 		if (m_pipelineBuilt == true)
 		{
@@ -260,9 +266,9 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 		tee = gst_element_factory_make("tee","tee");
 
 		dispqueue = gst_element_factory_make("queue", "queue1");
-		//dispsink = gst_element_factory_make("autovideosink", "videosink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+		dispsink = gst_element_factory_make("nvoverlaysink", "nvoverlaysink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 		overlay = gst_element_factory_make("textoverlay", "textoverlay");		
-		dispsink = gst_element_factory_make("nveglglessink", "nveglglessink");
+		//dispsink = gst_element_factory_make("nveglglessink", "nveglglessink");
 
 		recqueue = gst_element_factory_make("queue", "queu2e");
 		encode = gst_element_factory_make("omxh264enc", "omxh264enc");
@@ -306,7 +312,9 @@ bool CPipelineHelper::build_pipeline_display_h264file()
 				int offset = 0; //No current use, example for adding future functionality
 		g_signal_connect (filesink, "format-location", G_CALLBACK(_on_format_location), &offset);
 		g_object_set(G_OBJECT(filesink), "max-size-time", 300000000000, NULL);
-
+		
+		g_object_set(G_OBJECT(dispsink), "sync", 0, NULL); 
+		g_object_set(G_OBJECT(dispsink), "enable-last-sample", 0, NULL);
 		// add and link the pipeline elements
 		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, overlay, dispsink, recqueue, encode, parse, filesink, NULL);
 		gst_element_link_many(m_source, pipequeue, videoflip, convert, tee, NULL);
@@ -353,7 +361,7 @@ bool CPipelineHelper::build_pipeline_camfail()
 		convert = gst_element_factory_make("videoconvert", "converter");
 		errmess = gst_element_factory_make("textoverlay", "textoverlay");
 		errinfo = gst_element_factory_make("textoverlay", "textoverlay2");
-		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+		sink = gst_element_factory_make("nvoverlaysink", "nvoverlaysink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
 		if (!source){ cout << "Could not make videotestsrc" << endl; return false; }
 		if (!filter){ cout << "Could not make filter" << endl; return false; }
@@ -380,6 +388,9 @@ bool CPipelineHelper::build_pipeline_camfail()
 		g_object_set(G_OBJECT(errmess), "draw-outline", 0, NULL);
 		g_object_set(G_OBJECT(errmess), "ypad", 225, NULL); 
 		g_object_set(G_OBJECT(errmess), "font-desc", "Sans, 65", NULL); 
+
+		g_object_set(G_OBJECT(sink), "sync", 0, NULL); 
+		g_object_set(G_OBJECT(sink), "enable-last-sample", 0, NULL);
 
 		// add and link the pipeline elements
 		gst_bin_add_many(GST_BIN(m_pipeline), source, filter, convert, errmess, errinfo, sink, NULL);
@@ -426,7 +437,7 @@ bool CPipelineHelper::build_pipeline_powerfail()
 		convert = gst_element_factory_make("videoconvert", "converter");
 		errmess = gst_element_factory_make("textoverlay", "textoverlay");
 		errinfo = gst_element_factory_make("textoverlay", "textoverlay2");
-		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+		sink = gst_element_factory_make("nvoverlaysink", "nvoverlaysink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
 		if (!source){ cout << "Could not make videotestsrc" << endl; return false; }
 		if (!filter){ cout << "Could not make filter" << endl; return false; }
@@ -453,6 +464,9 @@ bool CPipelineHelper::build_pipeline_powerfail()
 		g_object_set(G_OBJECT(errmess), "draw-outline", 0, NULL);
 		g_object_set(G_OBJECT(errmess), "ypad", 225, NULL); 
 		g_object_set(G_OBJECT(errmess), "font-desc", "Sans, 65", NULL); 
+
+		g_object_set(G_OBJECT(sink), "sync", 0, NULL); 
+		g_object_set(G_OBJECT(sink), "enable-last-sample", 0, NULL);
 
 		// add and link the pipeline elements
 		gst_bin_add_many(GST_BIN(m_pipeline), source, filter, convert, errmess, errinfo, sink, NULL);
@@ -499,7 +513,7 @@ bool CPipelineHelper::build_pipeline_syserr()
 		convert = gst_element_factory_make("videoconvert", "converter");
 		errmess = gst_element_factory_make("textoverlay", "textoverlay");
 		errinfo = gst_element_factory_make("textoverlay", "textoverlay2");
-		sink = gst_element_factory_make("nveglglessink", "nveglglessink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+		sink = gst_element_factory_make("nvoverlaysink", "nvoverlaysink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 
 		if (!source){ cout << "Could not make videotestsrc" << endl; return false; }
 		if (!filter){ cout << "Could not make filter" << endl; return false; }
@@ -526,6 +540,9 @@ bool CPipelineHelper::build_pipeline_syserr()
 		g_object_set(G_OBJECT(errmess), "draw-outline", 0, NULL);
 		g_object_set(G_OBJECT(errmess), "ypad", 225, NULL); 
 		g_object_set(G_OBJECT(errmess), "font-desc", "Sans, 65", NULL); 
+
+		g_object_set(G_OBJECT(sink), "sync", 0, NULL); 
+		g_object_set(G_OBJECT(sink), "enable-last-sample", 0, NULL);
 
 		// add and link the pipeline elements
 		gst_bin_add_many(GST_BIN(m_pipeline), source, filter, convert, errmess, errinfo, sink, NULL);
