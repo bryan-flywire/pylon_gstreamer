@@ -110,7 +110,7 @@ bool CPipelineHelper::update_overlay(const gchar* updatetext){
 // example of how to create a pipeline for display in a window
 bool CPipelineHelper::build_pipeline_display()
 {
-	try
+		try
 	{
 		if (m_pipelineBuilt == true)
 		{
@@ -122,6 +122,8 @@ bool CPipelineHelper::build_pipeline_display()
 		GstElement *videoflip;
 		GstElement *convert;
 		GstElement *sink;
+		GstElement *filter;
+		GstCaps *filter_caps;
 
 		//sudo ./demopylongstreamer -parse "gst-launch-1.0 videotestsrc ! videoflip method=vertical-flip ! videoconvert ! nvoverlaysink"
 
@@ -132,11 +134,23 @@ bool CPipelineHelper::build_pipeline_display()
 		videoflip = gst_element_factory_make("videoflip", "videoflip");
 		convert = gst_element_factory_make("videoconvert", "converter");
 		sink = gst_element_factory_make("nvoverlaysink", "nvoverlaysink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+		filter = gst_element_factory_make("capsfilter", "capsfilter");
+
 
 		if (!videoflip){ cout << "Could not make videoflip" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
 		
+		filter = gst_element_factory_make("capsfilter", "filter");
+		filter_caps = gst_caps_new_simple("video/x-raw",
+			"format", G_TYPE_STRING, "I420",
+		  	"width", G_TYPE_INT, 1920,
+        	"height", G_TYPE_INT, 1080,
+		  NULL);
+		
+		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
+		gst_caps_unref(filter_caps);
+
 		// Set up elements
 		g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
 		g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
@@ -144,12 +158,10 @@ bool CPipelineHelper::build_pipeline_display()
 		//g_object_set(G_OBJECT(videoflip), "method", "vertical-flip", NULL);
 		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
 
-		g_object_set(G_OBJECT(sink), "sync", 0, NULL); 
-		g_object_set(G_OBJECT(sink), "enable-last-sample", 0, NULL);
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, videoflip, convert, sink, NULL);
-		gst_element_link_many(m_source, videoflip, convert, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, videoflip, convert, filter, sink, NULL);
+		gst_element_link_many(m_source, convert, videoflip, filter, sink, NULL);
 		
 		
 		cout << "Pipeline Made." << endl;
@@ -165,6 +177,7 @@ bool CPipelineHelper::build_pipeline_display()
 		return false;
 		
 	}
+
 }
 
 // example of how to create a pipeline for encoding images in h264 format and streaming to local video file
