@@ -176,7 +176,7 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 		m_scaledHeight = scaledHeight;
 		m_rotation = rotation;
 		m_numFramesToGrab = numFramesToGrab;
-
+ 
 		// since Image On Demand uses software trigger, it cannot be used with isTriggered
 		if (m_isOnDemand == true && m_isTriggered == true)
 		{
@@ -221,6 +221,12 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 				GenApi::CIntegerPtr(GetNodeMap().GetNode("Height"))->SetValue(m_height);
 		}
 
+		/// Application Specific Offset ///
+		if (IsWritable(GetNodeMap().GetNode("OffsetX"))){
+			GenApi::CIntegerPtr(GetNodeMap().GetNode("OffsetX"))->SetValue(960);
+		}
+		///============================///
+		
 		if (IsWritable(GetNodeMap().GetNode("CenterX")))
 			GenApi::CBooleanPtr(GetNodeMap().GetNode("CenterX"))->SetValue(true);
 		if (IsWritable(GetNodeMap().GetNode("CenterY")))
