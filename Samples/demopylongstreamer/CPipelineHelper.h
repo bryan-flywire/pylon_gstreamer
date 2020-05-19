@@ -38,11 +38,12 @@ public:
 	bool update_overlay(const gchar* updatetext);
 	// example of how to create a pipeline for display in a window
 	bool build_pipeline_display();
-	bool build_pipeline_h264file();
-	bool build_pipeline_display_h264file();
+	bool build_pipeline_h264file(const int tzOffset);
+	bool build_pipeline_display_h264file(const int tzOffset);
 	bool build_pipeline_camfail();
 	bool build_pipeline_syserr();
 	bool build_pipeline_powerfail();
+	bool build_pipeline_fullusb();
 	
 private:
 	bool m_pipelineBuilt;

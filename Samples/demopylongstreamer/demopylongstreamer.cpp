@@ -202,6 +202,7 @@ int numImagesToRecord = -1; // capture indefinitley unless otherwise specified.
 int scaledWidth = -1; // do not scale by default
 int scaledHeight = -1;
 int rotation = -1; // do not rotate or flip image by default
+int tzOffset = 0;
 bool needCam = false;
 bool h264stream = false;
 bool h264multicast = false;
@@ -211,6 +212,7 @@ bool displayh264file = false;
 bool camfail = false;
 bool powfail = false;
 bool syserr = false;
+bool fullusb = false;
 bool framebuffer = false;
 bool parsestring = false;
 bool onDemand = false;
@@ -388,9 +390,18 @@ int ParseCommandLine(gint argc, gchar *argv[])
 				needCam = false;
 				powfail = true;
 			}
+			else if (string(argv[i]) == "-fullusb")
+			{
+				needCam = false;
+				fullusb = true;
+			}
+			else if (string(argv[i]) == "-tz")
+			{
+				tzOffset = stoi(argv[i+1]);
+			}
 		}
 
-		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring, camfail, syserr, powfail };
+		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring, camfail, syserr, powfail, fullusb };
 		int pipelinesRequested = 0;
 
 		for (int i = 0; i < sizeof(pipelinesAvailable); i++)
@@ -510,15 +521,17 @@ gint main(gint argc, gchar *argv[])
 			if (display == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_display();
 			else if (h264file == true)
-				pipelineBuilt = myPipelineHelper.build_pipeline_h264file();
+				pipelineBuilt = myPipelineHelper.build_pipeline_h264file(tzOffset);
 			else if (displayh264file == true)
-				pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file();
+				pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file(tzOffset);
 			else if (camfail == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_camfail();
 			else if (syserr == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_syserr();
 			else if (powfail == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_powerfail();
+			else if (fullusb == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_fullusb();
 
 
 			if (pipelineBuilt == false)
@@ -578,16 +591,17 @@ gint main(gint argc, gchar *argv[])
 			if (display == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_display();
 			else if (h264file == true)
-				pipelineBuilt = myPipelineHelper.build_pipeline_h264file();
+				pipelineBuilt = myPipelineHelper.build_pipeline_h264file(tzOffset);
 			else if (displayh264file == true)
-				pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file();
+				pipelineBuilt = myPipelineHelper.build_pipeline_display_h264file(tzOffset);
 			else if (camfail == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_camfail();
 			else if (syserr == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_syserr();
 			else if (powfail == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_powerfail();
-
+			else if (fullusb == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_fullusb();
 
 			if (pipelineBuilt == false)
 			{

@@ -223,7 +223,7 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 
 		/// Application Specific Offset ///
 		if (IsWritable(GetNodeMap().GetNode("OffsetX"))){
-			GenApi::CIntegerPtr(GetNodeMap().GetNode("OffsetX"))->SetValue(960);
+			GenApi::CIntegerPtr(GetNodeMap().GetNode("OffsetX"))->SetValue(726);
 		}
 		///============================///
 		

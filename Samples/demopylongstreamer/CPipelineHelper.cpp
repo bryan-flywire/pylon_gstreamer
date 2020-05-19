@@ -41,6 +41,7 @@ static void print_caps (const GstCaps * caps, const gchar * pfx);
 static void print_pad_templates_information (GstElementFactory * factory);
 static void print_pad_capabilities (GstElement *element, gchar *pad_name);
 GstElement *overlay;
+int tz_Offset; // cant be passed as an arg to _on_format_location? (because of macro?)
 // ****************************************************************************
 
 CPipelineHelper::CPipelineHelper(GstElement *pipeline, GstElement *source)
@@ -55,10 +56,10 @@ CPipelineHelper::~CPipelineHelper()
 }
 
 
-gchar* _on_format_location(GstElement* splitmux, guint fragment_id, const int* offset)
+gchar* _on_format_location(GstElement* splitmux, guint fragment_id)
 {
 	time_t curr_time = time(0);
-	tm* now = localtime(&curr_time);
+	tm* now = gmtime(&curr_time);
 	string year = to_string(now->tm_year + 1900).erase(0,2);
 	//TODO: Fix sigfig hack
 	string month = to_string(now->tm_mon + 1);
@@ -69,7 +70,7 @@ gchar* _on_format_location(GstElement* splitmux, guint fragment_id, const int* o
 	if (day.length() < 2){
 		day = "0" + day;
 	}
-	string hour = to_string(now->tm_hour);
+	string hour = to_string((now->tm_hour + tz_Offset)%24);
 	if (hour.length() < 2){
 		hour = "0" + hour;
 	}
@@ -83,7 +84,7 @@ gchar* _on_format_location(GstElement* splitmux, guint fragment_id, const int* o
 	}
 	string datetime =  year + "." + month + "." + day + "_" + hour + "." + min + "." + sec + "_";
 	//string path = "/media/56C7-FC96/" + datetime + "_%04d.mp4";
-	string path = "/home/pi/flywire/tmp/" + datetime + "_%04d.mp4";
+	string path = "/home/pi/flywire/tmp/videos/" + datetime + "_%04d.mp4";
     const char* location = path.c_str();
     //gchar* fileName = g_strdup_printf(location, fragment_id + *offset);
 	gchar* fileName = g_strdup_printf(location, fragment_id);
@@ -181,10 +182,11 @@ bool CPipelineHelper::build_pipeline_display()
 }
 
 // example of how to create a pipeline for encoding images in h264 format and streaming to local video file
-bool CPipelineHelper::build_pipeline_h264file()
+bool CPipelineHelper::build_pipeline_h264file(int timezoneOffset)
 {
 	try
 	{
+		tz_Offset = timezoneOffset;
 		if (m_pipelineBuilt == true)
 		{
 			cout << "Cancelling -h264file. Another pipeline has already been built." << endl;
@@ -216,8 +218,8 @@ bool CPipelineHelper::build_pipeline_h264file()
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
 
 		// Set up elements
-		g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
-		g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
+		g_object_set(G_OBJECT(queue), "leaky", 1, NULL);
+		g_object_set(G_OBJECT(queue), "max-size-time", 200000000, NULL);
 
 		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
 
@@ -247,10 +249,11 @@ bool CPipelineHelper::build_pipeline_h264file()
 	}
 }
 
-bool CPipelineHelper::build_pipeline_display_h264file()
+bool CPipelineHelper::build_pipeline_display_h264file(int timezoneOffset)
 {
 try
 	{
+		tz_Offset = timezoneOffset;
 		if (m_pipelineBuilt == true)
 		{
 			cout << "Cancelling -display. Another pipeline has already been built." << endl;
@@ -302,10 +305,10 @@ try
 		if (!parse){ cout << "Could not make parse" << endl; return false; }
 		if (!filesink){ cout << "Could not make filesink" << endl; return false; }
 		
-		g_object_set(G_OBJECT(pipequeue), "leaky", 2, NULL);
-		g_object_set(G_OBJECT(pipequeue), "max-size-time", 2500000000, NULL);
-		g_object_set(G_OBJECT(recqueue), "leaky", 2, NULL);
-		g_object_set(G_OBJECT(recqueue), "max-size-time", 2500000000, NULL);
+		g_object_set(G_OBJECT(pipequeue), "leaky", 1, NULL);
+		//g_object_set(G_OBJECT(pipequeue), "max-size-time", 3000000000, NULL);
+		g_object_set(G_OBJECT(recqueue), "leaky", 1, NULL);
+		//g_object_set(G_OBJECT(recqueue), "max-size-time", 3000000000, NULL);
 
 		g_object_set(G_OBJECT(overlay), "text", "Recording", NULL);
 		g_object_set(G_OBJECT(overlay), "color", 4294901760, NULL); // #AARRGGBB -> int
@@ -313,13 +316,22 @@ try
 		g_object_set(G_OBJECT(overlay), "deltax", -500, NULL); 
 		g_object_set(G_OBJECT(overlay), "font-desc", "Sans, 15", NULL); 
 
-		g_object_set(G_OBJECT(dispqueue), "leaky", 2, NULL);
-		g_object_set(G_OBJECT(dispqueue), "max-size-time", 2500000000, NULL);
+		g_object_set(G_OBJECT(dispqueue), "leaky", 1, NULL);
+		//g_object_set(G_OBJECT(dispqueue), "max-size-time", 2000000, NULL);
 
 		g_object_set(G_OBJECT(videoflip), "video-direction", 3, NULL);
 
 		g_object_set(G_OBJECT(encode), "control-rate", 2, NULL);
-		g_object_set(G_OBJECT(encode), "bitrate", 7853000, NULL);
+		g_object_set(G_OBJECT(encode), "bitrate", 5000000, NULL);
+		//g_object_set(G_OBJECT(encode), "bitrate", 5750000, NULL);
+		//g_object_set(G_OBJECT(encode), "bitrate", 8219473, NULL);
+		//g_object_set(G_OBJECT(encode), "bitrate", 7000000, NULL);
+		g_object_set(G_OBJECT(encode), "EnableTwopassCBR", 1, NULL);
+		g_object_set(G_OBJECT(encode), "EnableStringentBitrate", 1, NULL);
+		g_object_set(G_OBJECT(encode), "vbv-size", 30, NULL);
+
+		g_object_set(G_OBJECT(encode), "profile", 8, NULL);
+		g_object_set(G_OBJECT(encode), "preset-level", 3, NULL);
 
 		g_object_set(G_OBJECT(filesink), "location", "/media/56C7-FC96/video%02d.mp4", NULL);
 				int offset = 0; //No current use, example for adding future functionality
@@ -329,11 +341,16 @@ try
 		g_object_set(G_OBJECT(dispsink), "sync", 0, NULL); 
 		g_object_set(G_OBJECT(dispsink), "enable-last-sample", 0, NULL);
 		// add and link the pipeline elements
+		/*
 		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, overlay, dispsink, recqueue, encode, parse, filesink, NULL);
 		gst_element_link_many(m_source, pipequeue, videoflip, convert, tee, NULL);
 		gst_element_link_many(tee, dispqueue, overlay, dispsink, NULL);
 		gst_element_link_many(tee, recqueue, encode, parse, filesink, NULL);
-		
+		*/
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, overlay, dispsink, recqueue, encode, parse, filesink, NULL);
+		gst_element_link_many(m_source, pipequeue, videoflip, convert, tee, NULL);
+		gst_element_link_many(tee, dispqueue, overlay, dispsink, NULL);
+		gst_element_link_many(tee, recqueue, encode, parse, filesink, NULL);
 		
 		cout << "Pipeline Made." << endl;
 		
@@ -549,6 +566,82 @@ bool CPipelineHelper::build_pipeline_syserr()
 		gst_caps_unref(filter_caps);
 
 		g_object_set(G_OBJECT(errmess), "text", "RESTART SYSTEM", NULL);
+		g_object_set(G_OBJECT(errmess), "color", 4294901760, NULL); // #AARRGGBB -> int
+		g_object_set(G_OBJECT(errmess), "draw-outline", 0, NULL);
+		g_object_set(G_OBJECT(errmess), "ypad", 225, NULL); 
+		g_object_set(G_OBJECT(errmess), "font-desc", "Sans, 65", NULL); 
+
+		g_object_set(G_OBJECT(sink), "sync", 0, NULL); 
+		g_object_set(G_OBJECT(sink), "enable-last-sample", 0, NULL);
+
+		// add and link the pipeline elements
+		gst_bin_add_many(GST_BIN(m_pipeline), source, filter, convert, errmess, errinfo, sink, NULL);
+		gst_element_link_many(source, filter, convert, errmess, errinfo, sink, NULL);
+		
+		
+		cout << "Pipeline Made." << endl;
+		
+		m_pipelineBuilt = true;
+
+		return true;
+	}
+	catch (std::exception &e)
+	{
+		cerr << "An exception occurred in build_pipeline_display(): " << endl << e.what() << endl;
+		gst_element_send_event(m_source, gst_event_new_eos());
+		return false;
+		
+	}
+}
+
+bool CPipelineHelper::build_pipeline_fullusb()
+{
+	try
+	{
+		if (m_pipelineBuilt == true)
+		{
+			cout << "Cancelling -display. Another pipeline has already been built." << endl;
+			return false;
+		}
+
+		GstElement *source;
+		GstElement *filter;
+		GstCaps *filter_caps;
+		GstElement *convert;
+		GstElement *errmess;
+		GstElement *errinfo;
+		GstElement *sink;
+
+		cout << "Creating Pipeline for displaying images in local window..." << endl;
+		// Create gstreamer elements
+		source = gst_element_factory_make("videotestsrc", "videotestsrc");
+		filter = gst_element_factory_make("capsfilter", "capsfilter");
+		convert = gst_element_factory_make("videoconvert", "converter");
+		errmess = gst_element_factory_make("textoverlay", "textoverlay");
+		errinfo = gst_element_factory_make("textoverlay", "textoverlay2");
+		sink = gst_element_factory_make("nvoverlaysink", "nvoverlaysink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
+
+		if (!source){ cout << "Could not make videotestsrc" << endl; return false; }
+		if (!filter){ cout << "Could not make filter" << endl; return false; }
+		if (!convert){ cout << "Could not make convert" << endl; return false; }
+		if (!errmess){ cout << "Could not make errmess" << endl; return false; }
+		if (!errinfo){ cout << "Could not make errinfo" << endl; return false; }
+		if (!sink){ cout << "Could not make sink" << endl; return false; }
+		
+		// Set up elements
+		//g_object_set(G_OBJECT(queue), "leaky", 2, NULL);
+		//g_object_set(G_OBJECT(queue), "max-size-time", 5000000000, NULL);
+
+		filter = gst_element_factory_make("capsfilter", "filter");
+		filter_caps = gst_caps_new_simple("video/x-raw",
+		  	"width", G_TYPE_INT, 1920,
+        	"height", G_TYPE_INT, 1080,
+		  NULL);
+		
+		g_object_set(G_OBJECT(filter), "caps", filter_caps, NULL);
+		gst_caps_unref(filter_caps);
+
+		g_object_set(G_OBJECT(errmess), "text", "REPLACE USB DRIVE", NULL);
 		g_object_set(G_OBJECT(errmess), "color", 4294901760, NULL); // #AARRGGBB -> int
 		g_object_set(G_OBJECT(errmess), "draw-outline", 0, NULL);
 		g_object_set(G_OBJECT(errmess), "ypad", 225, NULL); 
