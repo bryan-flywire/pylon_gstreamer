@@ -44,6 +44,7 @@ public:
 	bool build_pipeline_syserr();
 	bool build_pipeline_powerfail();
 	bool build_pipeline_fullusb();
+	bool build_pipeline_temperr();
 	
 private:
 	bool m_pipelineBuilt;

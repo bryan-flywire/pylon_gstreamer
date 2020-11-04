@@ -77,6 +77,9 @@
 #include <gst/gst.h>
 #include <thread>
 
+//#include <mcheck.h>
+
+
 using namespace std;
 
 int exitCode = 0;
@@ -213,6 +216,7 @@ bool camfail = false;
 bool powfail = false;
 bool syserr = false;
 bool fullusb = false;
+bool temperr = false;
 bool framebuffer = false;
 bool parsestring = false;
 bool onDemand = false;
@@ -222,6 +226,7 @@ string ipaddress = "";
 string filename = "";
 string fbdev = "";
 string pipelineString = "";
+string camParamFile = "";
 
 int ParseCommandLine(gint argc, gchar *argv[])
 {
@@ -395,13 +400,28 @@ int ParseCommandLine(gint argc, gchar *argv[])
 				needCam = false;
 				fullusb = true;
 			}
+			else if (string(argv[i]) == "-temperr")
+			{
+				needCam = false;
+				temperr = true;
+			}
 			else if (string(argv[i]) == "-tz")
 			{
 				tzOffset = stoi(argv[i+1]);
 			}
+			else if (string(argv[i]) == "-camparam")
+			{
+				if (argv[i + 1] != NULL)
+					camParamFile = argv[i + 1];
+				else
+				{
+					cout << "Parameter file not specified. eg: -camparam NodeMap.pfs" << endl;
+					return -1;
+				}
+			}
 		}
 
-		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring, camfail, syserr, powfail, fullusb };
+		bool pipelinesAvailable[] = { display, framebuffer, h264file, h264stream, displayh264file, h264multicast, parsestring, camfail, syserr, powfail, fullusb, temperr };
 		int pipelinesRequested = 0;
 
 		for (int i = 0; i < sizeof(pipelinesAvailable); i++)
@@ -454,7 +474,7 @@ void evalUsrInt(CPipelineHelper myPipelineHelper){
 
 gint main(gint argc, gchar *argv[])
 {
-
+	//mtrace();
 	try
 	{
 
@@ -485,7 +505,9 @@ gint main(gint argc, gchar *argv[])
 
 			// Initialize the camera and driver
 			cout << "Initializing camera and driver..." << endl;
-			camera.InitCamera(1080, 1920, 25, onDemand, useTrigger, scaledWidth, scaledHeight, rotation, numImagesToRecord);		
+			if (camParamFile == "")
+				camParamFile = "NodeMap.pfs";
+			camera.InitCamera(1080, 1920, 25, onDemand, useTrigger, scaledWidth, scaledHeight, rotation, numImagesToRecord, camParamFile);		
 
 			cout << "Using Camera             : " << camera.GetDeviceInfo().GetFriendlyName() << endl;
 			cout << "Camera Area Of Interest  : " << camera.GetWidth() << "x" << camera.GetHeight() << endl;
@@ -532,6 +554,8 @@ gint main(gint argc, gchar *argv[])
 				pipelineBuilt = myPipelineHelper.build_pipeline_powerfail();
 			else if (fullusb == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_fullusb();
+			else if (temperr == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_temperr();
 
 
 			if (pipelineBuilt == false)
@@ -602,7 +626,8 @@ gint main(gint argc, gchar *argv[])
 				pipelineBuilt = myPipelineHelper.build_pipeline_powerfail();
 			else if (fullusb == true)
 				pipelineBuilt = myPipelineHelper.build_pipeline_fullusb();
-
+			else if (temperr == true)
+				pipelineBuilt = myPipelineHelper.build_pipeline_temperr();
 			if (pipelineBuilt == false)
 			{
 				exitCode = -1;
@@ -649,5 +674,6 @@ gint main(gint argc, gchar *argv[])
 	//cerr << endl << "Press Enter to exit." << endl;
 	//while (cin.get() != '\n');
 	
+	//muntrace();
 	return exitCode;
 }

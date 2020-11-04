@@ -59,6 +59,10 @@
 #include "CInstantCameraAppSrc.h"
 #include <gst/app/gstappsrc.h>
 
+//#include <mcheck.h>
+
+
+
 using namespace Pylon;
 using namespace GenApi;
 using namespace std;
@@ -66,12 +70,13 @@ using namespace std;
 // Here we extend the Pylon CInstantCamera class with a few things to make it easier to integrate with Appsrc.
 CInstantCameraAppSrc::CInstantCameraAppSrc(string serialnumber)
 {
+	//mtrace();
 	// initialize Pylon runtime
 	Pylon::PylonInitialize();
 
 	m_serialNumber = serialnumber;
 	m_isOpen = false;
-
+	
 	try
 	{
 		// use the first camera device found. You can also populate a CDeviceInfo object with information like serial number, etc. to choose a specific camera
@@ -162,7 +167,7 @@ bool CInstantCameraAppSrc::SetFrameRate(double framesPerSecond)
 }
 
 // Open the camera and adjust some settings
-bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond, bool useOnDemand, bool useTrigger, int scaledWidth, int scaledHeight, int rotation, int numFramesToGrab)
+bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond, bool useOnDemand, bool useTrigger, int scaledWidth, int scaledHeight, int rotation, int numFramesToGrab, string filename)
 {
 	try
 	{
@@ -200,6 +205,24 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 
 		OpenCamera();
 
+		/*
+		// FOR TESTING PURPOSES ONLY //
+		if (IsWritable(GetNodeMap().GetNode("ExposureTimeRaw"))){
+			GenApi::CIntegerPtr(GetNodeMap().GetNode("ExposureTimeRaw"))->SetValue(1000000);
+			cout << "Writing ExposureTimeRaw to 1000000 For Low light test" << endl;
+		}
+		if (IsWritable(GetNodeMap().GetNode("GainAuto"))){
+			GenApi::CEnumerationPtr(GetNodeMap().GetNode("GainAuto"))->FromString("Off");
+			cout << "Writing GainAuto to off For Low light test" << endl;
+		}
+		*/
+		//const char Filename[] = "LowLight.pfs";
+		//CFeaturePersistence::Save( Filename, &GetNodeMap() );
+		//string testfile = "NodeMap.pfs";
+		CFeaturePersistence::Load( filename.c_str(), &GetNodeMap(), true );
+		cout << filename << endl;
+
+		/*
 		if (m_width == -1)
 		{
 			if (IsReadable(GetNodeMap().GetNode("Width")))
@@ -226,16 +249,16 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 			GenApi::CIntegerPtr(GetNodeMap().GetNode("OffsetX"))->SetValue(726);
 		}
 		///============================///
-		
+		*/
 		if (IsWritable(GetNodeMap().GetNode("CenterX")))
 			GenApi::CBooleanPtr(GetNodeMap().GetNode("CenterX"))->SetValue(true);
 		if (IsWritable(GetNodeMap().GetNode("CenterY")))
 			GenApi::CBooleanPtr(GetNodeMap().GetNode("CenterY"))->SetValue(true);
-		
+		/*
 		GenApi::CEnumerationPtr ptrAutoExposure = GetNodeMap().GetNode("ExposureAuto");
 		if (IsWritable(GetNodeMap().GetNode("ExposureAuto")))
 			GenApi::CEnumerationPtr(GetNodeMap().GetNode("ExposureAuto"))->FromString("Off");
-
+		*/
 		if (m_isOnDemand == true || m_isTriggered == true)
 		{
 			if (IsWritable(GetNodeMap().GetNode("TriggerSelector")))
@@ -296,7 +319,6 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 			GenApi::CIntegerPtr(GetNodeMap().GetNode("GevSCPSPacketSize"))->SetValue(1500); // set a usually-known-good gige packet size, like 1500.
 		}
 
-
 		// Check the current pixelFormat of the camera to see if the camera should be treated as color or mono
 		GenApi::CEnumerationPtr PixelFormat = GetNodeMap().GetNode("PixelFormat");
 		if (Pylon::IsMonoImage(Pylon::CPixelTypeMapper::GetPylonPixelTypeByName(PixelFormat->ToString())) == true)
@@ -340,7 +362,6 @@ bool CInstantCameraAppSrc::InitCamera(int width, int height, int framesPerSecond
 		m_Image.Reset(Pylon::EPixelType::PixelType_RGB8packed, m_width, m_height);
 
 		m_isInitialized = true;
-
 		return true;
 	}
 	catch (GenICam::GenericException &e)

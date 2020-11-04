@@ -47,7 +47,8 @@ public:
 		int scaledWidth = -1,
 		int scaledHeight = -1,
 		int rotation = -1,
-		int numFramesToGrab = -1);
+		int numFramesToGrab = -1,
+		string filename = "");
 	bool StartCamera();
 	bool StopCamera();
 	bool OpenCamera();
