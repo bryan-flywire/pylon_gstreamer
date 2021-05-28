@@ -111,7 +111,7 @@ bool CPipelineHelper::update_overlay(const gchar* updatetext){
 // example of how to create a pipeline for display in a window
 bool CPipelineHelper::build_pipeline_display()
 {
-		try
+	try
 	{
 		if (m_pipelineBuilt == true)
 		{
@@ -125,6 +125,7 @@ bool CPipelineHelper::build_pipeline_display()
 		GstElement *sink;
 		GstElement *filter;
 		GstElement *filter2;
+		GstElement *analyse;
 		GstCaps *filter_caps;
 
 		cout << "Creating Pipeline for displaying images in local window..." << endl;
@@ -135,11 +136,13 @@ bool CPipelineHelper::build_pipeline_display()
 		sink = gst_element_factory_make("nvdrmvideosink", "nvdrmvideosink");
 		filter = gst_element_factory_make("capsfilter", "capsfilter");
 		filter2 = gst_element_factory_make("capsfilter", "capsfilter");
+		analyse = gst_element_factory_make("videoanalyse", "videoanalyse");
 
 		if (!videoflip){ cout << "Could not make videoflip" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
-		
+		if (!analyse){ cout << "Could not make analyse" << endl; return false; }
+
 		filter = gst_element_factory_make("capsfilter", "filter");
 		filter2 = gst_element_factory_make("capsfilter", "filter2");
 		filter_caps = gst_caps_new_simple("video/x-raw",
@@ -165,8 +168,8 @@ bool CPipelineHelper::build_pipeline_display()
 		g_object_set(G_OBJECT(sink), "set_mode", 0, NULL);
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, videoflip, convert, filter2, filter, sink, NULL);
-		gst_element_link_many(m_source, convert, videoflip, filter2, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, videoflip, convert, filter2, filter, analyse, sink, NULL);
+		gst_element_link_many(m_source, convert, videoflip, filter2, analyse, sink, NULL);
 		
 		
 		cout << "Pipeline Made." << endl;
@@ -202,6 +205,7 @@ bool CPipelineHelper::build_pipeline_h264file(int timezoneOffset)
 		GstElement *convert;
 		GstElement *encode;
 		GstElement *parse;
+		GstElement *analyse;
 		GstElement *sink;
 
 		cout << "Creating Pipeline for saving frames as h264 video on local host" << endl;
@@ -215,10 +219,12 @@ bool CPipelineHelper::build_pipeline_h264file(int timezoneOffset)
 		encode = gst_element_factory_make("omxh264enc", "omxh264enc"); // omxh264enc works good on Raspberry Pi
 		parse = gst_element_factory_make("h264parse", "h264parse");
 		sink = gst_element_factory_make("splitmuxsink", "splitmuxsink");
+		analyse = gst_element_factory_make("videoanalyse", "videoanalyse");
 
 		if (!videoflip){ cout << "Could not make videoflip" << endl; return false; }
 		if (!convert){ cout << "Could not make convert" << endl; return false; }
 		if (!encode){ cout << "Could not make encoder" << endl; return false; }
+		if (!analyse){ cout << "Could not make analyse" << endl; return false; }
 		if (!sink){ cout << "Could not make sink" << endl; return false; }
 
 		// Set up elements
@@ -236,8 +242,8 @@ bool CPipelineHelper::build_pipeline_h264file(int timezoneOffset)
 		g_object_set(G_OBJECT(sink), "max-size-time", 300000000000, NULL);
 
 		// add and link the pipeline elements
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, videoflip, convert, encode, parse, sink, NULL);
-		gst_element_link_many(m_source, convert, queue,  videoflip, encode, parse, sink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, queue, videoflip, convert, encode, parse, analyse, sink, NULL);
+		gst_element_link_many(m_source, convert, analyse, queue,  videoflip, encode, parse, sink, NULL);
 		
 		cout << "Pipeline Made." << endl;
 		
@@ -269,6 +275,7 @@ try
 		GstElement *convert;
 		GstElement *tee;
 
+		GstElement *analyse;
 		GstElement *dispqueue;
 		GstElement *overlay;
 		GstElement *dispsink;
@@ -286,6 +293,7 @@ try
 		tee = gst_element_factory_make("tee","tee");
 
 		dispqueue = gst_element_factory_make("queue", "queue1");
+		analyse = gst_element_factory_make("videoanalyse", "videoanalyse");
 		dispsink = gst_element_factory_make("nvdrmvideosink", "nvdrmvideosink"); // depending on your platform, you may have to use some alternative here, like ("autovideosink", "sink")
 		overlay = gst_element_factory_make("textoverlay", "textoverlay");		
 		//dispsink = gst_element_factory_make("nveglglessink", "nveglglessink");
@@ -302,6 +310,7 @@ try
 
 		if (!dispqueue){ cout << "Could not make dispqueue" << endl; return false; }
 		if (!overlay){ cout << "Could not make overlay" << endl; return false; }
+		if (!analyse){ cout << "Could not make analyse" << endl; return false; }
 		if (!dispsink){ cout << "Could not make dispsink" << endl; return false; }
 
 		if (!recqueue){ cout << "Could not make recqueue" << endl; return false; }
@@ -346,9 +355,9 @@ try
 		g_object_set(G_OBJECT(dispsink), "plane_id", 1, NULL);
 		g_object_set(G_OBJECT(dispsink), "set_mode", 0, NULL);
 
-		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, overlay, dispsink, recqueue, encode, parse, filesink, NULL);
+		gst_bin_add_many(GST_BIN(m_pipeline), m_source, pipequeue, videoflip, convert, tee, dispqueue, overlay, dispsink, recqueue, encode, parse, analyse, filesink, NULL);
 		gst_element_link_many(m_source, pipequeue, videoflip, convert, tee, NULL);
-		gst_element_link_many(tee, dispqueue, overlay, dispsink, NULL);
+		gst_element_link_many(tee, dispqueue, overlay, analyse, dispsink, NULL);
 		gst_element_link_many(tee, recqueue, encode, parse, filesink, NULL);
 		
 		cout << "Pipeline Made." << endl;
